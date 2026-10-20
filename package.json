@@ -1,0 +1,8 @@
+{
+  "name": "hc-bot-app",
+  "displayName": "Hc Bot App",
+  "version": "0.1.0",
+  "description": "Aplikasi Android yang menjalankan Hc-bot dengan Node.js (nodejs-mobile + Cordova)",
+  "private": true,
+  "license": "UNLICENSED"
+}

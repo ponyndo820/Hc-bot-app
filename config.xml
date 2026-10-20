@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.heartcandy.hcbotapp" version="0.1.0"
+        xmlns="http://www.w3.org/ns/widgets"
+        xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>Hc Bot App</name>
+    <description>Menjalankan Hc-bot langsung di Android dengan Node.js.</description>
+    <author>Heart candy</author>
+    <content src="index.html" />
+    <access origin="*" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    <preference name="DisallowOverscroll" value="true" />
+    <platform name="android">
+        <!-- nodejs-mobile (Node.js 24) membutuhkan Android 7.0 (API 24) atau lebih baru -->
+        <preference name="android-minSdkVersion" value="24" />
+    </platform>
+</widget>

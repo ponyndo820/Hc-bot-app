@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src *; script-src 'self' 'unsafe-inline' 'unsafe-eval'">
+  <meta name="viewport" content="initial-scale=1, width=device-width, viewport-fit=cover">
+  <title>Hc Bot App</title>
+  <link rel="stylesheet" href="css/index.css">
+</head>
+<body>
+  <main>
+    <h1>Hc Bot App</h1>
+    <p class="sub">Menjalankan bot WhatsApp langsung di HP dengan Node.js</p>
+
+    <section class="card">
+      <h2>Status mesin Node.js</h2>
+      <div id="status" class="pill wait">Menunggu perangkat...</div>
+      <dl id="info"></dl>
+      <div id="warn" class="warn" hidden></div>
+    </section>
+
+    <section class="card">
+      <h2>Uji komunikasi</h2>
+      <button id="btnPing">Ping ke Node.js</button>
+      <button id="btnInfo" class="ghost">Muat ulang info</button>
+    </section>
+
+    <section class="card">
+      <h2>Log</h2>
+      <pre id="log"></pre>
+    </section>
+  </main>
+  <script src="cordova.js"></script>
+  <script src="js/index.js"></script>
+</body>
+</html>

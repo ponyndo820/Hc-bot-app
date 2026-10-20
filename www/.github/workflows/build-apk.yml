@@ -1,0 +1,43 @@
+name: Build APK
+
+# Jalankan manual dari tab Actions (Run workflow), atau otomatis setiap push ke branch main.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Pasang Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Pasang Cordova
+        run: npm install -g cordova
+
+      - name: Tambah platform Android dan plugin Node.js
+        run: |
+          cordova platform add android
+          cordova plugin add nodejs-mobile-cordova
+
+      - name: Bangun APK debug
+        run: cordova build android --debug
+
+      - name: Unggah APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: hc-bot-app-debug-apk
+          path: platforms/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

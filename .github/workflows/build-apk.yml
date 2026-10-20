@@ -1,6 +1,5 @@
 name: Build APK
 
-# Jalankan manual dari tab Actions (Run workflow), atau otomatis setiap push ke branch main.
 on:
   workflow_dispatch:
   push:
@@ -23,6 +22,10 @@ jobs:
 
       - name: Pasang Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Setujui Lisensi Android SDK
+        run: |
+          yes | sdkmanager --licenses || true
 
       - name: Pasang Cordova
         run: npm install -g cordova

@@ -10,32 +10,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-          
+
       - name: Pasang Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          accept-android-sdk-licenses: true
-          
+
+      - name: Setujui Semua Lisensi Android SDK Otomatis
+        run: |
+          yes | sdkmanager --licenses || true
+
       - name: Pasang Cordova
         run: npm install -g cordova
-        
+
       - name: Tambah platform Android dan plugin Node.js
         run: |
           cordova platform add android
           cordova plugin add nodejs-mobile-cordova
-          
+
       - name: Bangun APK debug
         run: cordova build android --debug
-        
+
       - name: Unggah APK
         uses: actions/upload-artifact@v4
         with:

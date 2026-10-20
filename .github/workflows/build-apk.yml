@@ -20,12 +20,11 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Pasang Android SDK
+      - name: Pasang Android SDK & Paket Pendukung
         uses: android-actions/setup-android@v3
-
-      - name: Setujui Semua Lisensi Android SDK Otomatis
-        run: |
-          yes | sdkmanager --licenses || true
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0 platform-tools'
+          accept-android-sdk-licenses: true
 
       - name: Pasang Cordova
         run: npm install -g cordova

@@ -93,7 +93,6 @@ jobs:
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
 
-      # [BARU] Patch repositori Gradle agar dapat mengunduh build tools dengan lancar
       - name: Patch build.gradle repositories
         shell: bash
         run: |
@@ -102,18 +101,12 @@ jobs:
           const gradlePath = "platforms/android/build.gradle";
           if (fs.existsSync(gradlePath)) {
             let content = fs.readFileSync(gradlePath, "utf8");
-            content = content.replace(/repositories\s*\{([^}]*)\}/g, (match, p1) => {
-              if (!p1.includes("google()")) {
-                return "repositories {\n    google()\n    mavenCentral()\n" + p1 + "}";
-              }
-              return match;
-            });
+            content = content.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
             fs.writeFileSync(gradlePath, content, "utf8");
-            console.log("build.gradle successfully patched with google() and mavenCentral()");
+            console.log("build.gradle successfully patched globally for all repositories.");
           }
           '
 
-      # Patch kompatibilitas sintaks Gradle untuk plugin nodejs-mobile
       - name: Patch Gradle dependencies (Fix implementation method)
         shell: bash
         run: |

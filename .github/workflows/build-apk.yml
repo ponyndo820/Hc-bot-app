@@ -79,22 +79,23 @@ jobs:
         run: cordova platform add android@10.1.2
           
       - name: Foolproof Patch for prepare.js (Node.js 16+ Fix)
-        shell: node
+        shell: bash
         run: |
-          const fs = require('fs');
-          const targetFile = 'platforms/android/cordova/lib/prepare.js';
+          node -e '
+          const fs = require("fs");
+          const targetFile = "platforms/android/cordova/lib/prepare.js";
           if (fs.existsSync(targetFile)) {
-            let content = fs.readFileSync(targetFile, 'utf8');
-            // Menambal path.join agar tidak pernah menerima nilai undefined
+            let content = fs.readFileSync(targetFile, "utf8");
             content = content.replace(
               /path\.join\(\s*cordovaProject\.root/g,
-              'path.join((cordovaProject && cordovaProject.root) || process.cwd()'
+              "path.join((cordovaProject && cordovaProject.root) || process.cwd()"
             );
-            fs.writeFileSync(targetFile, content, 'utf8');
-            console.log('BERHASIL: prepare.js telah dipatch dengan aman.');
+            fs.writeFileSync(targetFile, content, "utf8");
+            console.log("BERHASIL: prepare.js telah dipatch dengan aman.");
           } else {
-            console.log('PERINGATAN: File prepare.js tidak ditemukan.');
+            console.log("PERINGATAN: File prepare.js tidak ditemukan.");
           }
+          '
 
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
@@ -144,3 +145,4 @@ jobs:
           path: build-artifacts/hc-bot-app-debug.apk
           if-no-files-found: error
           retention-days: 7
+          

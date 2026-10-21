@@ -14,31 +14,40 @@ jobs:
     name: Build Hc Bot App
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
-      - name: Set up Node.js 16 (Wajib untuk plugin nodejs-mobile)
+
+      - name: Set up Node.js 16
         uses: actions/setup-node@v4
         with:
           node-version: '16'
-          
-      - name: Set up JDK 17
+
+      # JDK 17 hanya untuk memasang Android SDK (sdkmanager terbaru butuh Java 17)
+      - name: Set up JDK 17 (untuk sdkmanager)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-30 build-tools;30.0.3'
           accept-android-sdk-licenses: true
-          
+
+      # [PERBAIKAN] Cordova Android 10 membutuhkan Java 8 untuk membangun (Gradle 6.x tidak jalan di Java 17).
+      # Harus SETELAH setup-android karena menimpa JAVA_HOME.
+      - name: Set up JDK 8 (untuk build Cordova)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
       - name: Install Cordova
         run: npm install -g cordova@10.0.0
-        
+
       - name: Check build environment
         run: |
           node --version
@@ -48,25 +57,17 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME"
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          
+
       - name: Validate project files
         shell: bash
         run: |
           set -e
-          if [ ! -f config.xml ]; then
-            echo "ERROR: Missing config.xml"
-            exit 1
-          fi
-          if [ ! -f package.json ]; then
-            echo "ERROR: Missing package.json"
-            exit 1
-          fi
-          if [ ! -f www/index.html ]; then
-            echo "ERROR: Missing www/index.html"
-            exit 1
-          fi
+          test -f config.xml || { echo "ERROR: Missing config.xml"; exit 1; }
+          test -f package.json || { echo "ERROR: Missing package.json"; exit 1; }
+          test -f www/index.html || { echo "ERROR: Missing www/index.html"; exit 1; }
+          test -f www/nodejs-project/main.js || { echo "ERROR: Missing www/nodejs-project/main.js"; exit 1; }
           echo "Project structure looks valid."
-          
+
       - name: Install project dependencies
         run: |
           if [ -f package-lock.json ]; then
@@ -74,138 +75,61 @@ jobs:
           else
             npm install --ignore-scripts
           fi
-          
+
       - name: Add Android platform
         run: cordova platform add android@10.1.2
-          
-<<<<<<< HEAD
-      - name: Create Manual Foolproof prepare.js
-        shell: bash
-        run: |
-          mkdir -p platforms/android/cordova/lib
-          cat << 'EOF' > platforms/android/cordova/lib/prepare.js
-          /*
-             Licensed to the Apache Software Foundation (ASF) under one
-             or more contributor license agreements.  See the NOTICE file
-             distributed with this work for additional information
-             regarding copyright ownership.  The ASF licenses this file
-             to you under the Apache License, Version 2.0 (the
-             "License"); you may not use this file except in compliance
-             with the License.  You may obtain a copy of the License at
-
-               http://www.apache.org/licenses/LICENSE-2.0
-
-             Unless required by applicable law or agreed to in writing,
-             software distributed under the License is distributed on an
-             "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-             KIND, either express or implied.  See the License for the
-             specific language governing permissions and limitations
-             under the License.
-          */
-
-          var fs = require('fs');
-          var path = require('path');
-          var shell = require('shelljs');
-
-          module.exports = function (cordovaProject, options) {
-              // Pengaman total: pastikan cordovaProject dan root selalu bernilai valid
-              if (!cordovaProject) cordovaProject = {};
-              if (!cordovaProject.root) {
-                  cordovaProject.root = process.cwd();
-              }
-              var projectRoot = cordovaProject.root;
-
-              console.log('Running manual safe prepare.js for projectRoot: ' + projectRoot);
-
-              var platformRoot = path.join(projectRoot, 'platforms', 'android');
-              var wwwDir = path.join(projectRoot, 'www');
-              var targetWwwDir = path.join(platformRoot, 'app', 'src', 'main', 'assets', 'www');
-
-              if (fs.existsSync(wwwDir)) {
-                  if (fs.existsSync(targetWwwDir)) {
-                      shell.rm('-rf', path.join(targetWwwDir, '*'));
-                  } else {
-                      shell.mkdir('-p', targetWwwDir);
-                  }
-                  shell.cp('-rf', path.join(wwwDir, '*'), targetWwwDir);
-                  console.log('Successfully copied www assets to Android platform.');
-              }
-
-              return Promise.resolve();
-          };
-          EOF
-          echo "BERHASIL: File prepare.js manual berhasil ditulis."
-=======
-      - name: Ultimate Foolproof Patch for prepare.js
-        shell: bash
-        run: |
-          node -e '
-          const fs = require("fs");
-          const targetFile = "platforms/android/cordova/lib/prepare.js";
-          if (fs.existsSync(targetFile)) {
-            let content = fs.readFileSync(targetFile, "utf8");
-            
-            // 1. Amankan parameter fungsi utama agar tidak pernah undefined
-            content = content.replace(
-              /module\.exports\s*=\s*function\s*\(\s*cordovaProject\s*,\s*options\s*\)\s*\{/,
-              "module.exports = function(cordovaProject, options) {\n  if (!cordovaProject) cordovaProject = {};\n  if (!cordovaProject.root) cordovaProject.root = process.cwd();"
-            );
-            
-            // 2. Amankan penugasan variabel projectRoot
-            content = content.replace(
-              /var projectRoot\s*=\s*cordovaProject\.root\s*;/g,
-              "var projectRoot = (cordovaProject && cordovaProject.root) || process.cwd();"
-            );
-
-            fs.writeFileSync(targetFile, content, "utf8");
-            console.log("BERHASIL TOTAL: prepare.js telah dipatch di tingkat fungsi.");
-          } else {
-            console.log("PERINGATAN: File prepare.js tidak ditemukan.");
-          }
-          '
->>>>>>> d03f6ea878506a9995faf4d169f0d6e0de2abae7
 
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
-        
+
+      # [PERBAIKAN] Info tambahan supaya mudah mencari penyebab error
+      - name: Show Cordova state
+        run: |
+          cordova platform ls
+          cordova plugin ls
+          ls -la platforms/android || true
+
+      # [PERBAIKAN] --verbose menampilkan alur lengkap dan stack trace error.
+      # Cordova kadang mencetak error tapi tetap keluar dengan kode 0, jadi hasilnya
+      # disimpan ke build.log dan dicek manual.
       - name: Build debug APK
         shell: bash
         run: |
-          set -eo pipefail
-          echo "Memeriksa platform Android..."
-          test -d platforms/android
-          echo "Menjalankan build Cordova..."
-          cordova build android --debug --verbose
-          echo "Memeriksa Gradle wrapper..."
-          test -f platforms/android/gradlew
-          echo "Membangun APK debug secara langsung..."
-          cd platforms/android
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
-          cd ../..
-          
+          set +e
+          cordova build android --debug --verbose 2>&1 | tee build.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            echo "Cordova keluar dengan kode $STATUS"
+            exit "$STATUS"
+          fi
+          if grep -qE 'must be of type string|Error:|BUILD FAILED' build.log; then
+            echo "Terdeteksi error di build.log (lihat bagian atasnya)."
+            exit 1
+          fi
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Find and collect APK
         shell: bash
         run: |
           set -e
           mkdir -p build-artifacts
-          echo "Mencari APK hasil build..."
-          find platforms/android -type f -name '*.apk' -print
-          APK_PATH="$(find platforms/android -type f \
-            -name '*.apk' \
-            ! -name '*-androidTest*' \
-            -print -quit)"
+          APK_PATH="$(find platforms/android -type f -path '*/outputs/apk/*/*.apk' ! -name '*-androidTest*' -print -quit)"
           if [ -z "$APK_PATH" ]; then
-            echo "ERROR: APK tidak berhasil ditemukan."
-            echo "Daftar folder output:"
-            find platforms/android -type d \
-              -path '*/build/outputs/*' -print || true
+            echo "ERROR: APK not found."
+            find platforms/android -type f -name '*.apk' || true
             exit 1
           fi
           cp "$APK_PATH" build-artifacts/hc-bot-app-debug.apk
-          echo "APK berhasil ditemukan:"
           ls -lh build-artifacts/hc-bot-app-debug.apk
-          
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -213,4 +137,3 @@ jobs:
           path: build-artifacts/hc-bot-app-debug.apk
           if-no-files-found: error
           retention-days: 7
-          

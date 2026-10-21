@@ -27,7 +27,6 @@ jobs:
           target-sdk: android-30
           build-tools: 30.0.3
           platform-versions: platforms;android-30
-          android-architecture: x86_64
 
       - name: Pasang Cordova Versi 9
         run: npm install -g cordova@9.0.0

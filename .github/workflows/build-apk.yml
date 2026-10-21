@@ -1,3 +1,170 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Hc Bot App
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 14
+        uses: actions/setup-node@v4
+        with:
+          node-version: '14'
+
+      - name: Set up JDK 17 (untuk sdkmanager)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
+          accept-android-sdk-licenses: true
+
+      - name: Set up JDK 8 (untuk build Gradle & Cordova)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
+      - name: Install Gradle 5.6.4
+        run: |
+          set -e
+          wget -q https://services.gradle.org/distributions/gradle-5.6.4-bin.zip -O /tmp/gradle.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt
+          echo "/opt/gradle-5.6.4/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Gradle and Java
+        run: |
+          which gradle
+          gradle --version
+          java -version
+
+      - name: Install Cordova
+        run: npm install -g cordova@9.0.0
+
+      - name: Check build environment
+        run: |
+          node --version
+          npm --version
+          cordova --version
+          java -version
+          echo "JAVA_HOME=$JAVA_HOME"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+      - name: Validate project files
+        shell: bash
+        run: |
+          set -e
+          test -f config.xml || { echo "ERROR: Missing config.xml"; exit 1; }
+          test -f package.json || { echo "ERROR: Missing package.json"; exit 1; }
+          test -f www/index.html || { echo "ERROR: Missing www/index.html"; exit 1; }
+          test -f www/nodejs-project/main.js || { echo "ERROR: Missing www/nodejs-project/main.js"; exit 1; }
+          echo "Project structure looks valid."
+
+      - name: Install project dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --ignore-scripts
+          fi
+
+      - name: Ensure SDK preferences in config.xml
+        shell: bash
+        run: |
+          node -e '
+          const fs = require("fs");
+          let config = fs.readFileSync("config.xml", "utf8");
+          if (!config.includes("compileSdkVersion")) {
+            config = config.replace("</widget>", "    <preference name=\"compileSdkVersion\" value=\"29\" />\n    <preference name=\"targetSdkVersion\" value=\"29\" />\n    <preference name=\"android-minSdkVersion\" value=\"21\" />\n</widget>");
+            fs.writeFileSync("config.xml", config, "utf8");
+            console.log("Successfully injected SDK preferences into config.xml");
+          }
+          '
+
+      - name: Add Android platform & Node.js Mobile plugin
+        run: |
+          cordova platform add android@9.1.0
+          cordova plugin add nodejs-mobile-cordova
+
+      - name: Robust Gradle & Plugin SDK Patch
+        shell: bash
+        run: |
+          node -e '
+          const fs = require("fs");
+          const path = require("path");
+
+          function patchFiles(dir) {
+            if (!fs.existsSync(dir)) return;
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (let entry of entries) {
+              const fullPath = path.join(dir, entry.name);
+              try {
+                if (entry.isDirectory()) {
+                  patchFiles(fullPath);
+                } else if (entry.isFile() && (entry.name.endsWith(".gradle") || entry.name === "project.properties")) {
+                  let content = fs.readFileSync(fullPath, "utf8");
+                  content = content.replace(/compileSdkVersion\b.*/g, "compileSdkVersion 29");
+                  content = content.replace(/targetSdkVersion\b.*/g, "targetSdkVersion 29");
+                  content = content.replace(/minSdkVersion\b.*/g, "minSdkVersion 21");
+                  content = content.replace(/buildToolsVersion\b.*/g, "buildToolsVersion \"29.0.3\"");
+                  content = content.replace(/target=android-.*/g, "target=android-29");
+                  fs.writeFileSync(fullPath, content, "utf8");
+                }
+              } catch (e) {}
+            }
+          }
+
+          patchFiles("platforms/android");
+          patchFiles("plugins");
+          '
+
+      - name: Fix Gradle Repositories Globally (JCenter Fix)
+        shell: bash
+        run: |
+          node -e '
+          const fs = require("fs");
+          const path = require("path");
+
+          function patchGradleFiles(dir) {
+            if (!fs.existsSync(dir)) return;
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (let entry of entries) {
+              const fullPath = path.join(dir, entry.name);
+              try {
+                if (entry.isDirectory()) {
+                  patchGradleFiles(fullPath);
+                } else if (entry.isFile() && entry.name.endsWith(".gradle")) {
+                  let content = fs.readFileSync(fullPath, "utf8");
+                  content = content.replace(/jcenter\(\)/g, "mavenCentral()");
+                  content = content.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
+                  fs.writeFileSync(fullPath, content, "utf8");
+                }
+              } catch (e) {}
+            }
+          }
+
+          patchGradleFiles("platforms/android");
+          patchGradleFiles("plugins");
+          '
+
       - name: Show Cordova state
         run: |
           cordova platform ls

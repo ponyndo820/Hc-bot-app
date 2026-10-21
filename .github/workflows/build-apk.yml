@@ -181,9 +181,8 @@ jobs:
         run: |
           set -o pipefail
           cd platforms/android
-          ./gradlew clean
+          ./gradlew assembleDebug --verbose 2>&1 | tee ../../build.log
           cd ../..
-          cordova build android --debug --verbose 2>&1 | tee build.log
 
       - name: Find and collect APK
         if: success()

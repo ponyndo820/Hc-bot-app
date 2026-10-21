@@ -17,86 +17,55 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # 1. Mengambil kode proyek
+      # 1. Mengambil kode repositori
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Menyiapkan Node.js untuk Cordova CLI
+      # 2. Menyiapkan Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '14'
 
-      # 3. Java 17 diperlukan untuk Android SDK Command-line Tools
-      - name: Set up JDK 17 for Android SDK
+      # 3. Menggunakan JDK 17 untuk seluruh proses build
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      # 4. Menyiapkan Android SDK menggunakan Java 17
+      # 4. Menyiapkan Android SDK
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
           accept-android-sdk-licenses: true
 
-      # 5. Memastikan Android SDK sudah tersedia
-      - name: Verify Android SDK
-        run: |
-          java -version
-          sdkmanager --list_installed
+      # 5. Memasang Cordova CLI
+      - name: Install Cordova
+        run: npm install -g cordova@9.0.0
 
-      # 6. Beralih ke Java 8 untuk Cordova Android 9.1.0
-      - name: Set up JDK 8 for Cordova
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '8'
-
-      # 7. Memeriksa lingkungan build
+      # 6. Memeriksa lingkungan
       - name: Check build environment
         run: |
           node --version
           npm --version
-          cordova --version || true
+          cordova --version
           java -version
           echo "JAVA_HOME=$JAVA_HOME"
-          test -x "$JAVA_HOME/bin/java"
 
-      # 8. Memasang Cordova CLI versi 9
-      - name: Install Cordova
-        run: npm install -g cordova@9.0.0
-
-      # 9. Memeriksa struktur proyek
+      # 7. Memastikan file proyek tersedia
       - name: Validate project files
         shell: bash
         run: |
           set -e
+          test -f config.xml
+          test -f package.json
+          test -f www/index.html
+          test -f www/nodejs-project/main.js
+          echo "Struktur proyek valid."
 
-          test -f config.xml || {
-            echo "ERROR: config.xml tidak ditemukan."
-            exit 1
-          }
-
-          test -f package.json || {
-            echo "ERROR: package.json tidak ditemukan."
-            exit 1
-          }
-
-          test -f www/index.html || {
-            echo "ERROR: www/index.html tidak ditemukan."
-            exit 1
-          }
-
-          test -f www/nodejs-project/main.js || {
-            echo "ERROR: main.js Node.js Mobile tidak ditemukan."
-            exit 1
-          }
-
-          echo "Struktur dasar proyek valid."
-
-      # 10. Memasang dependensi proyek
+      # 8. Memasang dependensi
       - name: Install project dependencies
         run: |
           if [ -f package-lock.json ]; then
@@ -105,24 +74,30 @@ jobs:
             npm install --ignore-scripts
           fi
 
-      # 11. Menambahkan platform Android
+      # 9. Menambahkan platform Android
       - name: Add Android platform
         run: cordova platform add android@9.1.0
 
-      # 12. Memasang plugin Node.js Mobile
+      # 10. Memasang plugin Node.js Mobile
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
 
-      # 13. Membangun APK debug
+      # 11. Memastikan Java yang digunakan Gradle adalah JDK 17
+      - name: Verify Java for Gradle
+        run: |
+          java -version
+          echo "JAVA_HOME=$JAVA_HOME"
+          "$JAVA_HOME/bin/java" -version
+
+      # 12. Membangun APK debug
       - name: Build debug APK
         run: cordova build android --debug
 
-      # 14. Memastikan APK berhasil dibuat
+      # 13. Memeriksa hasil APK
       - name: Verify APK
         shell: bash
         run: |
           set -e
-
           mkdir -p build-artifacts
 
           APK="$(find platforms/android -type f \
@@ -139,7 +114,7 @@ jobs:
           cp "$APK" build-artifacts/hc-bot-app-debug.apk
           ls -lh build-artifacts/hc-bot-app-debug.apk
 
-      # 15. Mengunggah APK ke GitHub Actions
+      # 14. Mengunggah APK
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

@@ -95,7 +95,6 @@ jobs:
           if (!config.includes("compileSdkVersion")) {
             config = config.replace("</widget>", "    <preference name=\"compileSdkVersion\" value=\"29\" />\n    <preference name=\"targetSdkVersion\" value=\"29\" />\n    <preference name=\"android-minSdkVersion\" value=\"21\" />\n</widget>");
             fs.writeFileSync("config.xml", config, "utf8");
-            console.log("Successfully injected SDK preferences into config.xml");
           }
           '
 
@@ -104,60 +103,47 @@ jobs:
           cordova platform add android@9.1.0
           cordova plugin add nodejs-mobile-cordova
 
-      - name: Inject Global Gradle Force Override & JCenter Fix
+      - name: Prepare Android Platform
+        run: cordova prepare android
+
+      - name: Permanent Hardcode SDK Patch & JCenter Fix
         shell: bash
         run: |
           node -e '
           const fs = require("fs");
           const path = require("path");
 
-          // 1. Suntikkan force override ke build.gradle utama untuk mengunci versi SDK
-          const buildGradlePath = "platforms/android/build.gradle";
-          if (fs.existsSync(buildGradlePath)) {
-            let content = fs.readFileSync(buildGradlePath, "utf8");
-            const overrideBlock = `
-          // [FORCE OVERRIDE] Paksa semua subproject/plugin menggunakan SDK 29 dan MinSDK 21
-          subprojects {
-              afterEvaluate { project ->
-                  if (project.hasProperty("android")) {
-                      if (project.android.hasProperty("compileSdkVersion")) {
-                          project.android.compileSdkVersion = 29
-                      }
-                      if (project.android.hasProperty("defaultConfig")) {
-                          project.android.defaultConfig.minSdkVersion = 21
-                          project.android.defaultConfig.targetSdkVersion = 29
-                      }
-                  }
-              }
-          }
-          `;
-            if (!content.includes("FORCE OVERRIDE")) {
-              content += overrideBlock;
-              fs.writeFileSync(buildGradlePath, content, "utf8");
-              console.log("Berhasil menyuntikkan Global Gradle SDK Override.");
-            }
-          }
-
-          // 2. Perbaiki repositori JCenter secara global
-          function fixGradleFiles(dir) {
+          function patchGradleFiles(dir) {
             if (!fs.existsSync(dir)) return;
             const entries = fs.readdirSync(dir, { withFileTypes: true });
             for (let entry of entries) {
               const fullPath = path.join(dir, entry.name);
               try {
                 if (entry.isDirectory()) {
-                  fixGradleFiles(fullPath);
+                  patchGradleFiles(fullPath);
                 } else if (entry.isFile() && entry.name.endsWith(".gradle")) {
-                  let c = fs.readFileSync(fullPath, "utf8");
-                  c = c.replace(/jcenter\(\)/g, "mavenCentral()");
-                  c = c.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
-                  fs.writeFileSync(fullPath, c, "utf8");
+                  let content = fs.readFileSync(fullPath, "utf8");
+                  
+                  // Ganti total semua deklarasi SDK agar menjadi angka pasti (hardcode) 29 / 21
+                  content = content.replace(/compileSdkVersion\s+.*/g, "compileSdkVersion 29");
+                  content = content.replace(/targetSdkVersion\s+.*/g, "targetSdkVersion 29");
+                  content = content.replace(/minSdkVersion\s+.*/g, "minSdkVersion 21");
+                  content = content.replace(/buildToolsVersion\s+.*/g, "buildToolsVersion \"29.0.3\"");
+                  content = content.replace(/unspecified/g, "29");
+
+                  // Perbaiki repositori JCenter yang mati
+                  content = content.replace(/jcenter\(\)/g, "mavenCentral()");
+                  content = content.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
+
+                  fs.writeFileSync(fullPath, content, "utf8");
                 }
               } catch (e) {}
             }
           }
-          fixGradleFiles("platforms/android");
-          fixGradleFiles("plugins");
+
+          patchGradleFiles("platforms/android");
+          patchGradleFiles("plugins");
+          console.log("Berhasil menerapkan hardcode patch permanen pada semua file gradle.");
           '
 
       - name: Clean Gradle Cache Safely
@@ -165,11 +151,14 @@ jobs:
           rm -rf ~/.gradle/caches/ || true
           rm -rf platforms/android/.gradle/ || true
 
-      - name: Build debug APK with Cordova
+      - name: Build APK Directly with Gradle (Bypass Cordova Build Loop)
         shell: bash
         run: |
           set -o pipefail
-          cordova build android --debug --verbose 2>&1 | tee build.log
+          chmod +x platforms/android/gradlew
+          cd platforms/android
+          ./gradlew assembleDebug --verbose 2>&1 | tee ../build.log
+          cd ..
 
       - name: Find and collect APK
         if: success()

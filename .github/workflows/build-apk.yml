@@ -86,42 +86,58 @@ jobs:
             npm install --ignore-scripts
           fi
 
+      # [BARU] Pastikan config.xml memiliki preferensi SDK yang jelas sebelum platform ditambahkan
+      - name: Ensure SDK preferences in config.xml
+        shell: bash
+        run: |
+          node -e '
+          const fs = require("fs");
+          let config = fs.readFileSync("config.xml", "utf8");
+          if (!config.includes("compileSdkVersion")) {
+            config = config.replace("</widget>", "    <preference name=\"compileSdkVersion\" value=\"29\" />\n    <preference name=\"targetSdkVersion\" value=\"29\" />\n    <preference name=\"android-minSdkVersion\" value=\"21\" />\n</widget>");
+            fs.writeFileSync("config.xml", config, "utf8");
+            console.log("Successfully injected SDK preferences into config.xml");
+          }
+          '
+
       - name: Add Android platform & Node.js Mobile plugin
         run: |
           cordova platform add android@9.1.0
           cordova plugin add nodejs-mobile-cordova
 
-      # [PERBAIKAN] Patch build.gradle plugin secara aman dan sederhana
-      - name: Patch Node.js Mobile Gradle Config Safely
+      # [PERBAIKAN] Patch semua file gradle dan project.properties agar tidak ada yang unspecified
+      - name: Robust Gradle & Plugin SDK Patch
         shell: bash
         run: |
           node -e '
           const fs = require("fs");
           const path = require("path");
 
-          function patchDir(dir) {
+          function patchFiles(dir) {
             if (!fs.existsSync(dir)) return;
             const entries = fs.readdirSync(dir, { withFileTypes: true });
             for (let entry of entries) {
               const fullPath = path.join(dir, entry.name);
               try {
                 if (entry.isDirectory()) {
-                  patchDir(fullPath);
-                } else if (entry.isFile() && entry.name === "build.gradle") {
+                  patchFiles(fullPath);
+                } else if (entry.isFile() && (entry.name.endsWith(".gradle") || entry.name === "project.properties")) {
                   let content = fs.readFileSync(fullPath, "utf8");
                   content = content.replace(/compileSdkVersion\b.*/g, "compileSdkVersion 29");
                   content = content.replace(/targetSdkVersion\b.*/g, "targetSdkVersion 29");
+                  content = content.replace(/minSdkVersion\b.*/g, "minSdkVersion 21");
+                  content = content.replace(/buildToolsVersion\b.*/g, "buildToolsVersion \"29.0.3\"");
                   fs.writeFileSync(fullPath, content, "utf8");
-                  console.log("Patched build.gradle:", fullPath);
+                  console.log("Patched:", fullPath);
                 }
               } catch (e) {
-                console.error("Skipped due to error:", fullPath, e.message);
+                console.error("Error patching", fullPath, e.message);
               }
             }
           }
 
-          patchDir("plugins");
-          patchDir("platforms/android");
+          patchFiles("platforms/android");
+          patchFiles("plugins");
           '
 
       # Perbaikan JCenter repositories

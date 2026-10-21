@@ -109,11 +109,31 @@ jobs:
         run: cordova plugin add nodejs-mobile-cordova
 
       # 12. Memeriksa platform dan plugin
+      
       - name: Show Cordova state
+        shell: bash
         run: |
+          echo "=== Cordova version ==="
+          cordova --version
+
+          echo "=== Installed platforms ==="
           cordova platform ls
+
+          echo "=== Installed plugins ==="
           cordova plugin ls
-          test -f platforms/android/gradlew
+
+          echo "=== Android project files ==="
+          ls -la platforms/android || true
+
+          echo "=== Gradle wrapper location ==="
+          if [ -f platforms/android/gradlew ]; then
+            echo "Gradle wrapper ditemukan."
+          else
+            echo "Gradle wrapper tidak ditemukan di lokasi standar."
+            find platforms/android -maxdepth 4 \
+              -name gradlew -type f -print || true
+          fi
+
 
       # 13. Membangun APK dan menyimpan log
       - name: Build debug APK

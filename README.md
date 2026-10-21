@@ -1,4 +1,5 @@
 # Hc Bot App
+[![Build APK](https://github.com/ponyndo820/Hc-bot-app/actions/workflows/build-apk.yml/badge.svg)](https://github.com/ponyndo820/Hc-bot-app/actions/workflows/build-apk.yml)
 
 Aplikasi Android (Cordova + nodejs-mobile) yang menjalankan Node.js langsung di HP. Tujuan akhirnya: menjalankan Hc-bot tanpa Termux.
 

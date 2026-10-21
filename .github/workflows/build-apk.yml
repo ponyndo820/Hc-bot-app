@@ -44,6 +44,23 @@ jobs:
           distribution: temurin
           java-version: '8'
 
+      # [PERBAIKAN] Cordova Android 9 memakai Gradle yang ada di PATH untuk membuat "gradle wrapper".
+      # Gradle bawaan runner (9.x) butuh Java 17 atau lebih baru, sedangkan Cordova 9 butuh Java 8,
+      # sehingga muncul "Gradle requires JVM 17 or later to run". Karena itu dipasang Gradle 6.9.4
+      # yang bisa berjalan di Java 8 dan diletakkan paling depan di PATH.
+      - name: Install Gradle 6.9.4 (untuk Cordova 9)
+        run: |
+          set -e
+          wget -q https://services.gradle.org/distributions/gradle-6.9.4-bin.zip -O /tmp/gradle.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt
+          echo "/opt/gradle-6.9.4/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Gradle and Java
+        run: |
+          which gradle
+          gradle --version
+          java -version
+
       - name: Install Cordova
         run: npm install -g cordova@9.0.0
 

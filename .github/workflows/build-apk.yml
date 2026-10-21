@@ -136,9 +136,11 @@ jobs:
         shell: bash
         run: |
           set -e
-          cordova platform add android@9.1.0 --save
+          if [ ! -d "platforms/android" ]; then
+            cordova platform add android@9.1.0 --nofetch || npm install cordova-android@9.1.0
+          fi
           cordova plugin add nodejs-mobile-cordova --save || npm install nodejs-mobile-cordova --save
-          echo "Platform and plugin added successfully."
+          echo "Platform and plugin handled successfully."
 
       - name: Prepare Android Platform
         run: cordova prepare android

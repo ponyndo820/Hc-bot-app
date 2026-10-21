@@ -89,10 +89,8 @@ jobs:
           set -e
           mkdir -p build-artifacts
           
-          APK_PATH="$(find platforms/android/app/build/outputs/apk/debug -type f -name '*.apk' -print -quit)"
-          if [ -z "$APK_PATH" ]; then
-            APK_PATH="$(find platforms/android/build/outputs/apk/debug -type f -name '*.apk' -print -quit)"
-          fi
+          # Mencari file APK di semua subfolder outputs/apk/
+          APK_PATH="$(find platforms/android -type f -path '*/outputs/apk/*/*.apk' ! -name '*-androidTest*' -print -quit)"
           
           if [ -z "$APK_PATH" ]; then
             echo "ERROR: APK not found."
@@ -103,7 +101,7 @@ jobs:
           
           cp "$APK_PATH" build-artifacts/hc-bot-app-debug.apk
           ls -lh build-artifacts/hc-bot-app-debug.apk
-          
+     
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

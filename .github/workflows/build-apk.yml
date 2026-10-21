@@ -17,30 +17,58 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # 1. Ambil kode repositori
+      # 1. Mengambil kode proyek
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Siapkan Node.js untuk Cordova CLI
+      # 2. Menyiapkan Node.js untuk Cordova CLI
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '14'
 
-      # 3. Siapkan Java
-      - name: Set up JDK 8
+      # 3. Java 17 diperlukan untuk Android SDK Command-line Tools
+      - name: Set up JDK 17 for Android SDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 4. Menyiapkan Android SDK menggunakan Java 17
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
+          accept-android-sdk-licenses: true
+
+      # 5. Memastikan Android SDK sudah tersedia
+      - name: Verify Android SDK
+        run: |
+          java -version
+          sdkmanager --list_installed
+
+      # 6. Beralih ke Java 8 untuk Cordova Android 9.1.0
+      - name: Set up JDK 8 for Cordova
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '8'
 
-      # 4. Siapkan Android SDK
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platforms;android-29 build-tools;29.0.3'
+      # 7. Memeriksa lingkungan build
+      - name: Check build environment
+        run: |
+          node --version
+          npm --version
+          cordova --version || true
+          java -version
+          echo "JAVA_HOME=$JAVA_HOME"
+          test -x "$JAVA_HOME/bin/java"
 
-      # 5. Periksa file proyek
+      # 8. Memasang Cordova CLI versi 9
+      - name: Install Cordova
+        run: npm install -g cordova@9.0.0
+
+      # 9. Memeriksa struktur proyek
       - name: Validate project files
         shell: bash
         run: |
@@ -68,20 +96,7 @@ jobs:
 
           echo "Struktur dasar proyek valid."
 
-      # 6. Instal Cordova CLI
-      - name: Install Cordova
-        run: npm install --global cordova@9.0.0
-
-      # 7. Periksa versi tool
-      - name: Check build environment
-        run: |
-          node --version
-          npm --version
-          cordova --version
-          java -version
-          sdkmanager --list_installed
-
-      # 8. Instal dependensi proyek utama
+      # 10. Memasang dependensi proyek
       - name: Install project dependencies
         run: |
           if [ -f package-lock.json ]; then
@@ -90,23 +105,25 @@ jobs:
             npm install --ignore-scripts
           fi
 
-      # 9. Tambahkan platform Android
+      # 11. Menambahkan platform Android
       - name: Add Android platform
         run: cordova platform add android@9.1.0
 
-      # 10. Tambahkan plugin Node.js Mobile
+      # 12. Memasang plugin Node.js Mobile
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
 
-      # 11. Build APK debug
+      # 13. Membangun APK debug
       - name: Build debug APK
         run: cordova build android --debug
 
-      # 12. Cari dan validasi APK hasil build
+      # 14. Memastikan APK berhasil dibuat
       - name: Verify APK
         shell: bash
         run: |
           set -e
+
+          mkdir -p build-artifacts
 
           APK="$(find platforms/android -type f \
             -path '*/outputs/apk/*/*.apk' \
@@ -119,13 +136,10 @@ jobs:
             exit 1
           fi
 
-          mkdir -p build-artifacts
           cp "$APK" build-artifacts/hc-bot-app-debug.apk
-
-          echo "APK berhasil dibuat:"
           ls -lh build-artifacts/hc-bot-app-debug.apk
 
-      # 13. Unggah APK ke GitHub Actions
+      # 15. Mengunggah APK ke GitHub Actions
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

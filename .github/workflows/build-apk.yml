@@ -1,3 +1,4 @@
+
 name: Build APK
 
 on:
@@ -16,48 +17,42 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      # 1. Mengambil kode repositori
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2. Node.js untuk menjalankan Cordova CLI
       - name: Set up Node.js 14
         uses: actions/setup-node@v4
         with:
           node-version: '14'
 
-      - name: Set up JDK 17 (untuk sdkmanager)
+      # 3. Java 17 untuk Android SDK Command-line Tools
+      - name: Set up JDK 17 for Android SDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
+      # 4. Menyiapkan Android SDK
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
           accept-android-sdk-licenses: true
 
-      - name: Set up JDK 8 (untuk build Gradle & Cordova)
+      # 5. Beralih ke Java 8 untuk Cordova Android 9
+      - name: Set up JDK 8 for Cordova
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '8'
 
-      - name: Install Gradle 6.9.4
-        run: |
-          set -e
-          wget -q https://services.gradle.org/distributions/gradle-6.9.4-bin.zip -O /tmp/gradle.zip
-          sudo unzip -q /tmp/gradle.zip -d /opt
-          echo "/opt/gradle-6.9.4/bin" >> "$GITHUB_PATH"
-
-      - name: Verify Gradle and Java
-        run: |
-          which gradle
-          gradle --version
-          java -version
-
+      # 6. Memasang Cordova CLI
       - name: Install Cordova
         run: npm install -g cordova@9.0.0
 
+      # 7. Memeriksa lingkungan build
       - name: Check build environment
         run: |
           node --version
@@ -68,159 +63,107 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
+      # 8. Memvalidasi file proyek
       - name: Validate project files
         shell: bash
         run: |
           set -e
-          test -f config.xml || { echo "ERROR: Missing config.xml"; exit 1; }
-          test -f package.json || { echo "ERROR: Missing package.json"; exit 1; }
-          test -f www/index.html || { echo "ERROR: Missing www/index.html"; exit 1; }
-          test -f www/nodejs-project/main.js || { echo "ERROR: Missing www/nodejs-project/main.js"; exit 1; }
-          echo "Project structure looks valid."
 
+          test -f config.xml || {
+            echo "ERROR: config.xml tidak ditemukan."
+            exit 1
+          }
+
+          test -f package.json || {
+            echo "ERROR: package.json tidak ditemukan."
+            exit 1
+          }
+
+          test -f www/index.html || {
+            echo "ERROR: www/index.html tidak ditemukan."
+            exit 1
+          }
+
+          test -f www/nodejs-project/main.js || {
+            echo "ERROR: main.js Node.js Mobile tidak ditemukan."
+            exit 1
+          }
+
+          echo "Struktur proyek valid."
+
+      # 9. Memasang dependensi proyek
       - name: Install project dependencies
         run: |
           if [ -f package-lock.json ]; then
             npm ci
           else
-            npm install --ignore-scripts
+            npm install
           fi
 
-      # [BARU] Pastikan config.xml memiliki preferensi SDK yang jelas sebelum platform ditambahkan
-      - name: Ensure SDK preferences in config.xml
-        shell: bash
-        run: |
-          node -e '
-          const fs = require("fs");
-          let config = fs.readFileSync("config.xml", "utf8");
-          if (!config.includes("compileSdkVersion")) {
-            config = config.replace("</widget>", "    <preference name=\"compileSdkVersion\" value=\"29\" />\n    <preference name=\"targetSdkVersion\" value=\"29\" />\n    <preference name=\"android-minSdkVersion\" value=\"21\" />\n</widget>");
-            fs.writeFileSync("config.xml", config, "utf8");
-            console.log("Successfully injected SDK preferences into config.xml");
-          }
-          '
+      # 10. Menambahkan platform Android
+      - name: Add Android platform
+        run: cordova platform add android@9.1.0
 
-      - name: Add Android platform & Node.js Mobile plugin
-        run: |
-          cordova platform add android@9.1.0
-          cordova plugin add nodejs-mobile-cordova
+      # 11. Memasang plugin Node.js Mobile
+      - name: Add Node.js Mobile plugin
+        run: cordova plugin add nodejs-mobile-cordova
 
-      # [PERBAIKAN] Patch semua file gradle dan project.properties agar tidak ada yang unspecified
-      - name: Robust Gradle & Plugin SDK Patch
-        shell: bash
-        run: |
-          node -e '
-          const fs = require("fs");
-          const path = require("path");
-
-          function patchFiles(dir) {
-            if (!fs.existsSync(dir)) return;
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            for (let entry of entries) {
-              const fullPath = path.join(dir, entry.name);
-              try {
-                if (entry.isDirectory()) {
-                  patchFiles(fullPath);
-                } else if (entry.isFile() && (entry.name.endsWith(".gradle") || entry.name === "project.properties")) {
-                  let content = fs.readFileSync(fullPath, "utf8");
-                  content = content.replace(/compileSdkVersion\b.*/g, "compileSdkVersion 29");
-                  content = content.replace(/targetSdkVersion\b.*/g, "targetSdkVersion 29");
-                  content = content.replace(/minSdkVersion\b.*/g, "minSdkVersion 21");
-                  content = content.replace(/buildToolsVersion\b.*/g, "buildToolsVersion \"29.0.3\"");
-                  fs.writeFileSync(fullPath, content, "utf8");
-                  console.log("Patched:", fullPath);
-                }
-              } catch (e) {
-                console.error("Error patching", fullPath, e.message);
-              }
-            }
-          }
-
-          patchFiles("platforms/android");
-          patchFiles("plugins");
-          '
-
-      # Perbaikan JCenter repositories
-      - name: Fix Gradle Repositories (JCenter Fix)
-        shell: bash
-        run: |
-          node -e '
-          const fs = require("fs");
-          const path = require("path");
-
-          function patchGradleFiles(dir) {
-            if (!fs.existsSync(dir)) return;
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            for (let entry of entries) {
-              const fullPath = path.join(dir, entry.name);
-              try {
-                if (entry.isDirectory()) {
-                  patchGradleFiles(fullPath);
-                } else if (entry.isFile() && entry.name.endsWith(".gradle")) {
-                  let content = fs.readFileSync(fullPath, "utf8");
-                  content = content.replace(/jcenter\(\)/g, "mavenCentral()");
-                  if (!content.includes("google()")) {
-                    content = content.replace(/repositories\s*\{/, "repositories {\n        google()");
-                  }
-                  fs.writeFileSync(fullPath, content, "utf8");
-                }
-              } catch (e) {}
-            }
-          }
-
-          patchGradleFiles("platforms/android");
-          patchGradleFiles("plugins");
-          '
-
+      # 12. Memeriksa platform dan plugin
       - name: Show Cordova state
         run: |
           cordova platform ls
           cordova plugin ls
-          ls -la platforms/android || true
+          test -f platforms/android/gradlew
 
-      - name: Clean Gradle Cache
-        run: |
-          rm -rf ~/.gradle/caches/
-          rm -rf platforms/android/.gradle/
-
+      # 13. Membangun APK dan menyimpan log
       - name: Build debug APK
         shell: bash
         run: |
-          set +e
-          cd platforms/android
-          ./gradlew clean
-          cd ../..
-          cordova build android --debug --verbose --refresh-dependencies 2>&1 | tee build.log
-          STATUS=${PIPESTATUS[0]}
-          if [ "$STATUS" -ne 0 ]; then
-            echo "Cordova keluar dengan kode error $STATUS"
-            exit "$STATUS"
+          set -o pipefail
+
+          cordova build android --debug --verbose 2>&1 | tee build.log
+
+      # 14. Mengumpulkan APK debug
+      - name: Find and collect APK
+        if: success()
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p build-artifacts
+
+          echo "Mencari APK debug..."
+
+          APK_PATH="$(find platforms/android \
+            -type f \
+            -path '*/outputs/apk/debug/*.apk' \
+            ! -name '*-androidTest*' \
+            -print -quit)"
+
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: APK debug tidak ditemukan."
+            find platforms/android -type f -name '*.apk' -print || true
+            exit 1
           fi
 
+          cp "$APK_PATH" build-artifacts/hc-bot-app-debug.apk
+
+          echo "APK berhasil ditemukan:"
+          ls -lh build-artifacts/hc-bot-app-debug.apk
+
+      # 15. Mengunggah log, termasuk jika build gagal
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log
+          name: hc-bot-app-build-log
           path: build.log
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Find and Download APK
-        shell: bash
-        run: |
-          set -e
-          mkdir -p build-artifacts
-          APK_PATH="$(find platforms/android -type f -path '*/outputs/apk/*/*.apk' ! -name '*-androidTest*' -print -quit)"
-          if [ -z "$APK_PATH" ]; then
-            echo "ERROR: APK not found."
-            find platforms/android -type f -name '*.apk' || true
-            exit 1
-          fi
-          cp "$APK_PATH" build-artifacts/hc-bot-app-debug.apk
-          ls -lh build-artifacts/hc-bot-app-debug.apk
-
+      # 16. Mengunggah APK jika berhasil dibuat
       - name: Upload debug APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: hc-bot-app-debug-apk

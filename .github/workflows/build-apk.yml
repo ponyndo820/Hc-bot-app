@@ -17,35 +17,30 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # 1. Mengambil kode repositori
+    
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # 2. Menyiapkan Node.js
+        
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '14'
-
-      # 3. Menggunakan JDK 17 untuk seluruh proses build
+          
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
-      # 4. Menyiapkan Android SDK
+          
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
           accept-android-sdk-licenses: true
-
-      # 5. Memasang Cordova CLI
+          
       - name: Install Cordova
         run: npm install -g cordova@9.0.0
-
-      # 6. Memeriksa lingkungan
+        
       - name: Check build environment
         run: |
           node --version
@@ -53,8 +48,7 @@ jobs:
           cordova --version
           java -version
           echo "JAVA_HOME=$JAVA_HOME"
-
-      # 7. Memastikan file proyek tersedia
+          ku
       - name: Validate project files
         shell: bash
         run: |
@@ -64,8 +58,7 @@ jobs:
           test -f www/index.html
           test -f www/nodejs-project/main.js
           echo "Struktur proyek valid."
-
-      # 8. Memasang dependensi
+          
       - name: Install project dependencies
         run: |
           if [ -f package-lock.json ]; then
@@ -73,27 +66,22 @@ jobs:
           else
             npm install --ignore-scripts
           fi
-
-      # 9. Menambahkan platform Android
+          
       - name: Add Android platform
         run: cordova platform add android@9.1.0
-
-      # 10. Memasang plugin Node.js Mobile
+        
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
-
-      # 11. Memastikan Java yang digunakan Gradle adalah JDK 17
+        
       - name: Verify Java for Gradle
         run: |
           java -version
           echo "JAVA_HOME=$JAVA_HOME"
           "$JAVA_HOME/bin/java" -version
-
-      # 12. Membangun APK debug
+          
       - name: Build debug APK
         run: cordova build android --debug
-
-      # 13. Memeriksa hasil APK
+        
       - name: Verify APK
         shell: bash
         run: |
@@ -104,17 +92,16 @@ jobs:
             -path '*/outputs/apk/*/*.apk' \
             ! -name '*-androidTest*' \
             -print -quit)"
-
+            
           if [ -z "$APK" ]; then
             echo "ERROR: APK tidak ditemukan."
             find platforms/android -type f -name '*.apk' || true
             exit 1
           fi
-
+          
           cp "$APK" build-artifacts/hc-bot-app-debug.apk
           ls -lh build-artifacts/hc-bot-app-debug.apk
-
-      # 14. Mengunggah APK
+          
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

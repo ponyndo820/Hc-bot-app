@@ -104,17 +104,14 @@ jobs:
           cordova platform add android@9.1.0
           cordova plugin add nodejs-mobile-cordova
 
-      - name: Prepare Android Platform (Generate Files & Hooks)
-        run: cordova prepare android
-
-      - name: Inject Global Gradle SDK Force Override & JCenter Fix
+      - name: Inject Global Gradle Force Override & JCenter Fix
         shell: bash
         run: |
           node -e '
           const fs = require("fs");
           const path = require("path");
 
-          // 1. Suntikkan skrip pemaksa SDK global ke root build.gradle
+          // 1. Suntikkan force override ke build.gradle utama untuk mengunci versi SDK
           const buildGradlePath = "platforms/android/build.gradle";
           if (fs.existsSync(buildGradlePath)) {
             let content = fs.readFileSync(buildGradlePath, "utf8");
@@ -141,7 +138,7 @@ jobs:
             }
           }
 
-          // 2. Perbaiki JCenter global dan pastikan repositori benar
+          // 2. Perbaiki repositori JCenter secara global
           function fixGradleFiles(dir) {
             if (!fs.existsSync(dir)) return;
             const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -168,12 +165,11 @@ jobs:
           rm -rf ~/.gradle/caches/ || true
           rm -rf platforms/android/.gradle/ || true
 
-      - name: Build debug APK Directly with Gradle
+      - name: Build debug APK with Cordova
         shell: bash
         run: |
           set -o pipefail
-          chmod +x platforms/android/gradlew
-          platforms/android/gradlew assembleDebug --verbose 2>&1 | tee build.log
+          cordova build android --debug --verbose 2>&1 | tee build.log
 
       - name: Find and collect APK
         if: success()

@@ -75,22 +75,27 @@ jobs:
             npm install --ignore-scripts
           fi
           
-      - name: Patch cordova-android template (Fix Node.js 16+ path bug permanently)
-        shell: bash
-        run: |
-          TEMPLATE_JS="node_modules/cordova-android/bin/templates/cordova/lib/prepare.js"
-          if [ -f "$TEMPLATE_JS" ]; then
-            echo "Patching template $TEMPLATE_JS..."
-            sed -i 's/var projectRoot = cordovaProject.root;/var projectRoot = cordovaProject.root || path.join(__dirname, "..\/..\/..");/g' "$TEMPLATE_JS"
-            echo "Template patch berhasil diterapkan."
-          else
-            echo "WARNING: Template prepare.js tidak ditemukan di node_modules, mencari lokasi lain..."
-            find node_modules/cordova-android -name "prepare.js" || true
-          fi
-          
       - name: Add Android platform
         run: cordova platform add android@10.1.2
           
+      - name: Foolproof Patch for prepare.js (Node.js 16+ Fix)
+        shell: node
+        run: |
+          const fs = require('fs');
+          const targetFile = 'platforms/android/cordova/lib/prepare.js';
+          if (fs.existsSync(targetFile)) {
+            let content = fs.readFileSync(targetFile, 'utf8');
+            // Menambal path.join agar tidak pernah menerima nilai undefined
+            content = content.replace(
+              /path\.join\(\s*cordovaProject\.root/g,
+              'path.join((cordovaProject && cordovaProject.root) || process.cwd()'
+            );
+            fs.writeFileSync(targetFile, content, 'utf8');
+            console.log('BERHASIL: prepare.js telah dipatch dengan aman.');
+          } else {
+            console.log('PERINGATAN: File prepare.js tidak ditemukan.');
+          }
+
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
         

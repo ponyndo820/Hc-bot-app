@@ -109,3 +109,5 @@ jobs:
           path: build-artifacts/hc-bot-app-debug.apk
           if-no-files-found: error
           retention-days: 7
+          
+          

@@ -1,6 +1,6 @@
 {
   "name": "hc-bot-node",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Kode Node.js yang berjalan di dalam aplikasi",
   "main": "main.js",
   "private": true

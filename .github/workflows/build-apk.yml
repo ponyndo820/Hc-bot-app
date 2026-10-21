@@ -93,7 +93,8 @@ jobs:
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
 
-      - name: Patch build.gradle repositories
+      # [PERBAIKAN] Suntikkan google() dan mavenCentral() secara spesifik ke buildscript & allprojects
+      - name: Precise Patch for build.gradle Repositories
         shell: bash
         run: |
           node -e '
@@ -101,9 +102,27 @@ jobs:
           const gradlePath = "platforms/android/build.gradle";
           if (fs.existsSync(gradlePath)) {
             let content = fs.readFileSync(gradlePath, "utf8");
-            content = content.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
+            
+            // Tambahkan ke buildscript repositories
+            content = content.replace(/buildscript\s*\{([\s\S]*?)\}/, (match, inner) => {
+              if (!inner.includes("google()")) {
+                inner = inner.replace(/repositories\s*\{/, "repositories {\n        google()\n        mavenCentral()");
+              }
+              return `buildscript {${inner}}`;
+            });
+
+            // Tambahkan ke allprojects repositories
+            content = content.replace(/allprojects\s*\{([\s\S]*?)\}/, (match, inner) => {
+              if (!inner.includes("google()")) {
+                inner = inner.replace(/repositories\s*\{/, "repositories {\n        google()\n        mavenCentral()");
+              }
+              return `allprojects {${inner}}`;
+            });
+
             fs.writeFileSync(gradlePath, content, "utf8");
-            console.log("build.gradle successfully patched globally for all repositories.");
+            console.log("SUCCESS: build.gradle repositories patched precisely.");
+          } else {
+            console.log("ERROR: build.gradle not found!");
           }
           '
 

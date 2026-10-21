@@ -115,14 +115,24 @@ jobs:
       - name: Ensure SDK preferences in config.xml
         shell: bash
         run: |
-          node -e '
+          node << 'NODESCRIPT'
           const fs = require("fs");
           let config = fs.readFileSync("config.xml", "utf8");
-          if (!config.includes("compileSdkVersion")) {
-            config = config.replace("</widget>", "    <preference name=\\"compileSdkVersion\\" value=\\"29\\" />\\n    <preference name=\\"targetSdkVersion\\" value=\\"29\\" />\\n    <preference name=\\"android-minSdkVersion\\" value=\\"24\\" />\\n</widget>");
+          if (!config.includes('name="compileSdkVersion"')) {
+            const prefs = [
+              '    <preference name="compileSdkVersion" value="29" />',
+              '    <preference name="targetSdkVersion" value="29" />',
+              '    <preference name="android-minSdkVersion" value="24" />',
+              '    <preference name="android-compileSdkVersion" value="29" />',
+              '    <preference name="android-targetSdkVersion" value="29" />'
+            ].join("\n");
+            config = config.replace("</widget>", prefs + "\n</widget>");
             fs.writeFileSync("config.xml", config, "utf8");
+            console.log("SDK preferences added to config.xml");
+          } else {
+            console.log("SDK preferences already present");
           }
-          '
+          NODESCRIPT
 
       - name: Add Android platform & Node.js Mobile plugin
         shell: bash

@@ -24,7 +24,6 @@ jobs:
         with:
           node-version: '20'
 
-
       - name: Set up JDK 17 (untuk sdkmanager)
         uses: actions/setup-java@v4
         with:
@@ -146,14 +145,6 @@ jobs:
       - name: Prepare Android Platform
         run: cordova prepare android
 
-      - name: Debug - list platforms/android contents
-        shell: bash
-        run: |
-          echo "=== platforms/android structure ==="
-          ls -la platforms/android/ || true
-          echo "=== Looking for gradlew ==="
-          find platforms/android -name "gradlew*" -o -name "build.gradle" | head -20 || true
-
       - name: Permanent Hardcode SDK Patch & JCenter / versioncompare Fix
         shell: bash
         run: |
@@ -245,7 +236,8 @@ jobs:
 
       - name: Clean Gradle Cache Safely
         run: |
-          rm -rf ~/.gradle/caches/ || true
+          hr_dir=~/.gradle/caches/
+          rm -rf "$hr_dir" || true
           rm -rf platforms/android/.gradle/ || true
 
       - name: Ensure Gradle Wrapper exists (Gradle 6.9.4)
@@ -288,7 +280,7 @@ jobs:
           ls -lh build-artifacts/hc-bot-app-debug.apk
 
       - name: Upload build log
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: hc-bot-app-build-log

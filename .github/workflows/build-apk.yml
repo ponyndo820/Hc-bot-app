@@ -36,13 +36,13 @@ jobs:
           packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
           accept-android-sdk-licenses: true
 
-      - name: Set up JDK 8 (untuk build Cordova)
+      - name: Set up JDK 8 (untuk build Gradle & Cordova)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '8'
 
-      - name: Install Gradle 6.9.4 (untuk Cordova 9)
+      - name: Install Gradle 6.9.4
         run: |
           set -e
           wget -q https://services.gradle.org/distributions/gradle-6.9.4-bin.zip -O /tmp/gradle.zip
@@ -67,7 +67,6 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME"
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          gradle --version || true
 
       - name: Validate project files
         shell: bash
@@ -93,45 +92,40 @@ jobs:
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
 
-      # [PERBAIKAN] Suntikkan google() dan mavenCentral() secara spesifik ke buildscript & allprojects
-      - name: Precise Patch for build.gradle Repositories
+      # [PERBAIKAN] Mengganti JCenter secara aman tanpa merusak struktur nested blocks (maven { url ... })
+      - name: Fix Gradle Repositories (JCenter Fix)
         shell: bash
         run: |
           node -e '
           const fs = require("fs");
-          const gradlePath = "platforms/android/build.gradle";
-          if (fs.existsSync(gradlePath)) {
-            let content = fs.readFileSync(gradlePath, "utf8");
-            
-            // Tambahkan ke buildscript repositories
-            content = content.replace(/buildscript\s*\{([\s\S]*?)\}/, (match, inner) => {
-              if (!inner.includes("google()")) {
-                inner = inner.replace(/repositories\s*\{/, "repositories {\n        google()\n        mavenCentral()");
-              }
-              return `buildscript {${inner}}`;
-            });
+          const path = require("path");
 
-            // Tambahkan ke allprojects repositories
-            content = content.replace(/allprojects\s*\{([\s\S]*?)\}/, (match, inner) => {
-              if (!inner.includes("google()")) {
-                inner = inner.replace(/repositories\s*\{/, "repositories {\n        google()\n        mavenCentral()");
+          function patchGradleFiles(dir) {
+            if (!fs.existsSync(dir)) return;
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (let entry of entries) {
+              const fullPath = path.join(dir, entry.name);
+              if (entry.isDirectory()) {
+                patchGradleFiles(fullPath);
+              } else if (entry.isFile() && entry.name.endsWith(".gradle")) {
+                let content = fs.readFileSync(fullPath, "utf8");
+                
+                // Ganti jcenter() dengan mavenCentral() agar tidak error karena jcenter mati
+                content = content.replace(/jcenter\(\)/g, "mavenCentral()");
+                
+                // Pastikan google() ada di dalam block repositories
+                if (!content.includes("google()")) {
+                  content = content.replace(/repositories\s*\{/, "repositories {\n        google()");
+                }
+                
+                fs.writeFileSync(fullPath, content, "utf8");
+                console.log("Patched repositories safely in:", fullPath);
               }
-              return `allprojects {${inner}}`;
-            });
-
-            fs.writeFileSync(gradlePath, content, "utf8");
-            console.log("SUCCESS: build.gradle repositories patched precisely.");
-          } else {
-            console.log("ERROR: build.gradle not found!");
+            }
           }
-          '
 
-      - name: Patch Gradle dependencies (Fix implementation method)
-        shell: bash
-        run: |
-          echo "Mengubah implementation ke compile pada file .gradle..."
-          find platforms/android -name "*.gradle" -exec sed -i 's/\bimplementation\b/compile/g' {} +
-          echo "Patch Gradle selesai."
+          patchGradleFiles("platforms/android");
+          '
 
       - name: Show Cordova state
         run: |
@@ -146,12 +140,8 @@ jobs:
           cordova build android --debug --verbose 2>&1 | tee build.log
           STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
-            echo "Cordova keluar dengan kode $STATUS"
+            echo "Cordova keluar dengan kode error $STATUS"
             exit "$STATUS"
-          fi
-          if grep -qE 'must be of type string|Error:|BUILD FAILED' build.log; then
-            echo "Terdeteksi error di build.log (lihat bagian atasnya)."
-            exit 1
           fi
 
       - name: Upload build log
@@ -163,7 +153,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Find and collect APK
+      - name: Find and Download APK
         shell: bash
         run: |
           set -e

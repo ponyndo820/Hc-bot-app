@@ -82,6 +82,21 @@ jobs:
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
 
+      # [PERBAIKAN] Hook plugin "after-prepare-patch-npm-packages.js" memanggil `new Api(...)` milik cordova-android
+      # dengan cara yang tidak cocok dengan cordova-android 10.1.2, sehingga muncul error
+      # 'The "path" argument must be of type string. Received undefined' (lihat stack trace di log build).
+      # Hook ini hanya menambal paket npm yang berisi modul native, yang belum kita pakai, jadi dikosongkan.
+      - name: Nonaktifkan hook plugin yang tidak cocok
+        shell: bash
+        run: |
+          set -e
+          HOOK=plugins/nodejs-mobile-cordova/install/hooks/both/after-prepare-patch-npm-packages.js
+          test -f "$HOOK" || { echo "ERROR: hook tidak ditemukan: $HOOK"; ls -R plugins/nodejs-mobile-cordova/install | head -50; exit 1; }
+          cp "$HOOK" "$HOOK.bak"
+          echo "module.exports = function () { console.log('[hc-bot-app] hook patch-npm-packages dilewati'); };" > "$HOOK"
+          echo "Hook dikosongkan:"
+          cat "$HOOK"
+
       # [PERBAIKAN] Info tambahan supaya mudah mencari penyebab error
       - name: Show Cordova state
         run: |

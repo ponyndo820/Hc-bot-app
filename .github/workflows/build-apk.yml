@@ -180,6 +180,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          chmod +x platforms/android/gradlew
           cd platforms/android
           ./gradlew assembleDebug --verbose 2>&1 | tee ../../build.log
           cd ../..

@@ -19,10 +19,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 16
+      - name: Set up Node.js 14
         uses: actions/setup-node@v4
         with:
-          node-version: '16'
+          node-version: '14'
 
       # JDK 17 hanya untuk memasang Android SDK (sdkmanager terbaru butuh Java 17)
       - name: Set up JDK 17 (untuk sdkmanager)
@@ -34,11 +34,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools platforms;android-30 build-tools;30.0.3'
+          packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
           accept-android-sdk-licenses: true
 
-      # [PERBAIKAN] Cordova Android 10 membutuhkan Java 8 untuk membangun (Gradle 6.x tidak jalan di Java 17).
-      # Harus SETELAH setup-android karena menimpa JAVA_HOME.
+      # Cordova Android 9 membutuhkan Java 8. Harus SETELAH setup-android karena menimpa JAVA_HOME.
       - name: Set up JDK 8 (untuk build Cordova)
         uses: actions/setup-java@v4
         with:
@@ -46,7 +45,7 @@ jobs:
           java-version: '8'
 
       - name: Install Cordova
-        run: npm install -g cordova@10.0.0
+        run: npm install -g cordova@9.0.0
 
       - name: Check build environment
         run: |
@@ -57,6 +56,7 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME"
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          gradle --version || true
 
       - name: Validate project files
         shell: bash
@@ -76,37 +76,20 @@ jobs:
             npm install --ignore-scripts
           fi
 
+      # [PERBAIKAN] Platform Android diturunkan ke 9.1.0, versi yang cocok dengan plugin nodejs-mobile-cordova.
+      # Di versi 10 ke atas, hook plugin memanggil "new Api()" tanpa argumen sehingga error "path ... undefined".
       - name: Add Android platform
-        run: cordova platform add android@10.1.2
+        run: cordova platform add android@9.1.0
 
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
 
-      # [PERBAIKAN] Hook plugin "after-prepare-patch-npm-packages.js" memanggil `new Api(...)` milik cordova-android
-      # dengan cara yang tidak cocok dengan cordova-android 10.1.2, sehingga muncul error
-      # 'The "path" argument must be of type string. Received undefined' (lihat stack trace di log build).
-      # Hook ini hanya menambal paket npm yang berisi modul native, yang belum kita pakai, jadi dikosongkan.
-      - name: Nonaktifkan hook plugin yang tidak cocok
-        shell: bash
-        run: |
-          set -e
-          HOOK=plugins/nodejs-mobile-cordova/install/hooks/both/after-prepare-patch-npm-packages.js
-          test -f "$HOOK" || { echo "ERROR: hook tidak ditemukan: $HOOK"; ls -R plugins/nodejs-mobile-cordova/install | head -50; exit 1; }
-          cp "$HOOK" "$HOOK.bak"
-          echo "module.exports = function () { console.log('[hc-bot-app] hook patch-npm-packages dilewati'); };" > "$HOOK"
-          echo "Hook dikosongkan:"
-          cat "$HOOK"
-
-      # [PERBAIKAN] Info tambahan supaya mudah mencari penyebab error
       - name: Show Cordova state
         run: |
           cordova platform ls
           cordova plugin ls
           ls -la platforms/android || true
 
-      # [PERBAIKAN] --verbose menampilkan alur lengkap dan stack trace error.
-      # Cordova kadang mencetak error tapi tetap keluar dengan kode 0, jadi hasilnya
-      # disimpan ke build.log dan dicek manual.
       - name: Build debug APK
         shell: bash
         run: |

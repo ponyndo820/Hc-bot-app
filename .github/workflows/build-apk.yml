@@ -77,29 +77,56 @@ jobs:
           
       - name: Add Android platform
         run: cordova platform add android@10.1.2
-        
+          
+      - name: Patch cordova-android prepare.js (Fix Node.js 16+ path bug)
+        shell: bash
+        run: |
+          PREPARE_JS="platforms/android/cordova/lib/prepare.js"
+          if [ -f "$PREPARE_JS" ]; then
+            echo "Patching $PREPARE_JS..."
+            sed -i 's/var projectRoot = cordovaProject.root;/var projectRoot = cordovaProject.root || path.join(__dirname, "..\/..\/..");/g' "$PREPARE_JS"
+            echo "Patch berhasil diterapkan."
+          fi
+
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
         
       - name: Build debug APK
-        run: cordova build android --debug
-        
+        shell: bash
+        run: |
+          set -eo pipefail
+          echo "Memeriksa platform Android..."
+          test -d platforms/android
+          echo "Menjalankan build Cordova..."
+          cordova build android --debug --verbose
+          echo "Memeriksa Gradle wrapper..."
+          test -f platforms/android/gradlew
+          echo "Membangun APK debug secara langsung..."
+          cd platforms/android
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+          cd ../..
+          
       - name: Find and collect APK
+        shell: bash
         run: |
           set -e
           mkdir -p build-artifacts
-          
-          # Mencari file APK di semua subfolder outputs/apk/
-          APK_PATH="$(find platforms/android -type f -path '*/outputs/apk/*/*.apk' ! -name '*-androidTest*' -print -quit)"
-          
+          echo "Mencari APK hasil build..."
+          find platforms/android -type f -name '*.apk' -print
+          APK_PATH="$(find platforms/android -type f \
+            -name '*.apk' \
+            ! -name '*-androidTest*' \
+            -print -quit)"
           if [ -z "$APK_PATH" ]; then
-            echo "ERROR: APK not found."
-            echo "Cari di lokasi alternatif:"
-            find platforms/android -type f -name '*.apk' || true
+            echo "ERROR: APK tidak berhasil ditemukan."
+            echo "Daftar folder output:"
+            find platforms/android -type d \
+              -path '*/build/outputs/*' -print || true
             exit 1
           fi
-          
           cp "$APK_PATH" build-artifacts/hc-bot-app-debug.apk
+          echo "APK berhasil ditemukan:"
           ls -lh build-artifacts/hc-bot-app-debug.apk
           
       - name: Upload debug APK

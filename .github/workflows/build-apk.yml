@@ -171,10 +171,10 @@ jobs:
           cordova plugin ls
           ls -la platforms/android || true
 
-      - name: Clean Gradle Cache
+      - name: Clean Gradle Cache Safely
         run: |
-          rm -rf ~/.gradle/caches/
-          rm -rf platforms/android/.gradle/
+          rm -rf ~/.gradle/caches/ || true
+          rm -rf platforms/android/.gradle/ || true
 
       - name: Build debug APK
         shell: bash
@@ -214,6 +214,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: hc-bot-app-debug-apk
-          path: build-artifacts/hc-bot-app-debug-apk
+          path: build-artifacts/hc-bot-app-debug.apk
           if-no-files-found: error
           retention-days: 7

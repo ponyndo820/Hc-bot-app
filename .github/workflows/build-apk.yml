@@ -24,7 +24,6 @@ jobs:
         with:
           node-version: '14'
 
-      # JDK 17 hanya untuk memasang Android SDK (sdkmanager terbaru butuh Java 17)
       - name: Set up JDK 17 (untuk sdkmanager)
         uses: actions/setup-java@v4
         with:
@@ -37,17 +36,12 @@ jobs:
           packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
           accept-android-sdk-licenses: true
 
-      # Cordova Android 9 membutuhkan Java 8. Harus SETELAH setup-android karena menimpa JAVA_HOME.
       - name: Set up JDK 8 (untuk build Cordova)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '8'
 
-      # [PERBAIKAN] Cordova Android 9 memakai Gradle yang ada di PATH untuk membuat "gradle wrapper".
-      # Gradle bawaan runner (9.x) butuh Java 17 atau lebih baru, sedangkan Cordova 9 butuh Java 8,
-      # sehingga muncul "Gradle requires JVM 17 or later to run". Karena itu dipasang Gradle 6.9.4
-      # yang bisa berjalan di Java 8 dan diletakkan paling depan di PATH.
       - name: Install Gradle 6.9.4 (untuk Cordova 9)
         run: |
           set -e
@@ -93,13 +87,19 @@ jobs:
             npm install --ignore-scripts
           fi
 
-      # [PERBAIKAN] Platform Android diturunkan ke 9.1.0, versi yang cocok dengan plugin nodejs-mobile-cordova.
-      # Di versi 10 ke atas, hook plugin memanggil "new Api()" tanpa argumen sehingga error "path ... undefined".
       - name: Add Android platform
         run: cordova platform add android@9.1.0
 
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
+
+      # [BARU] Patch kompatibilitas sintaks Gradle untuk plugin nodejs-mobile
+      - name: Patch Gradle dependencies (Fix implementation method)
+        shell: bash
+        run: |
+          echo "Mengubah implementation ke compile pada file .gradle..."
+          find platforms/android -name "*.gradle" -exec sed -i 's/\bimplementation\b/compile/g' {} +
+          echo "Patch Gradle selesai."
 
       - name: Show Cordova state
         run: |

@@ -91,36 +91,40 @@ jobs:
           cordova platform add android@9.1.0
           cordova plugin add nodejs-mobile-cordova
 
-      - name: Patch Node.js Mobile Gradle Config
+      # [PERBAIKAN] Patch build.gradle plugin secara aman dan sederhana
+      - name: Patch Node.js Mobile Gradle Config Safely
         shell: bash
         run: |
           node -e '
           const fs = require("fs");
           const path = require("path");
 
-          function patchPlugin(dir) {
+          function patchDir(dir) {
             if (!fs.existsSync(dir)) return;
             const entries = fs.readdirSync(dir, { withFileTypes: true });
             for (let entry of entries) {
               const fullPath = path.join(dir, entry.name);
-              if (entry.isDirectory()) {
-                patchPlugin(fullPath);
-              } else if (entry.isFile() && entry.name === "build.gradle") {
-                let content = fs.readFileSync(fullPath, "utf8");
-                content = content.replace(/compileSdkVersion\s+rootProject\.hasProperty\(['\"][^'\"]+['\"]\) \? [^\:]+ :\s*[^,\n]+/g, "compileSdkVersion 29");
-                content = content.replace(/targetSdkVersion\s+rootProject\.hasProperty\(['\"][^'\"]+['\"]\) \? [^\:]+ :\s*[^,\n]+/g, "targetSdkVersion 29");
-                content = content.replace(/compileSdkVersion\s+unspecified/g, "compileSdkVersion 29");
-                content = content.replace(/targetSdkVersion\s+unspecified/g, "targetSdkVersion 29");
-                fs.writeFileSync(fullPath, content, "utf8");
-                console.log("Successfully patched:", fullPath);
+              try {
+                if (entry.isDirectory()) {
+                  patchDir(fullPath);
+                } else if (entry.isFile() && entry.name === "build.gradle") {
+                  let content = fs.readFileSync(fullPath, "utf8");
+                  content = content.replace(/compileSdkVersion\b.*/g, "compileSdkVersion 29");
+                  content = content.replace(/targetSdkVersion\b.*/g, "targetSdkVersion 29");
+                  fs.writeFileSync(fullPath, content, "utf8");
+                  console.log("Patched build.gradle:", fullPath);
+                }
+              } catch (e) {
+                console.error("Skipped due to error:", fullPath, e.message);
               }
             }
           }
 
-          patchPlugin("plugins/nodejs-mobile-cordova");
-          patchPlugin("platforms/android");
+          patchDir("plugins");
+          patchDir("platforms/android");
           '
 
+      # Perbaikan JCenter repositories
       - name: Fix Gradle Repositories (JCenter Fix)
         shell: bash
         run: |
@@ -133,16 +137,18 @@ jobs:
             const entries = fs.readdirSync(dir, { withFileTypes: true });
             for (let entry of entries) {
               const fullPath = path.join(dir, entry.name);
-              if (entry.isDirectory()) {
-                patchGradleFiles(fullPath);
-              } else if (entry.isFile() && entry.name.endsWith(".gradle")) {
-                let content = fs.readFileSync(fullPath, "utf8");
-                content = content.replace(/jcenter\(\)/g, "mavenCentral()");
-                if (!content.includes("google()")) {
-                  content = content.replace(/repositories\s*\{/, "repositories {\n        google()");
+              try {
+                if (entry.isDirectory()) {
+                  patchGradleFiles(fullPath);
+                } else if (entry.isFile() && entry.name.endsWith(".gradle")) {
+                  let content = fs.readFileSync(fullPath, "utf8");
+                  content = content.replace(/jcenter\(\)/g, "mavenCentral()");
+                  if (!content.includes("google()")) {
+                    content = content.replace(/repositories\s*\{/, "repositories {\n        google()");
+                  }
+                  fs.writeFileSync(fullPath, content, "utf8");
                 }
-                fs.writeFileSync(fullPath, content, "utf8");
-              }
+              } catch (e) {}
             }
           }
 
@@ -156,7 +162,6 @@ jobs:
           cordova plugin ls
           ls -la platforms/android || true
 
-      # [BARU] Bersihkan cache Gradle lama agar memaksa unduhan dependensi yang bersih
       - name: Clean Gradle Cache
         run: |
           rm -rf ~/.gradle/caches/

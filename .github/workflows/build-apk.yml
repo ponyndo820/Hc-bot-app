@@ -78,7 +78,6 @@ jobs:
       - name: Add Android platform
         run: cordova platform add android@10.1.2
           
-<<<<<<< HEAD
       - name: Create Manual Foolproof prepare.js
         shell: bash
         run: |
@@ -135,35 +134,6 @@ jobs:
           };
           EOF
           echo "BERHASIL: File prepare.js manual berhasil ditulis."
-=======
-      - name: Ultimate Foolproof Patch for prepare.js
-        shell: bash
-        run: |
-          node -e '
-          const fs = require("fs");
-          const targetFile = "platforms/android/cordova/lib/prepare.js";
-          if (fs.existsSync(targetFile)) {
-            let content = fs.readFileSync(targetFile, "utf8");
-            
-            // 1. Amankan parameter fungsi utama agar tidak pernah undefined
-            content = content.replace(
-              /module\.exports\s*=\s*function\s*\(\s*cordovaProject\s*,\s*options\s*\)\s*\{/,
-              "module.exports = function(cordovaProject, options) {\n  if (!cordovaProject) cordovaProject = {};\n  if (!cordovaProject.root) cordovaProject.root = process.cwd();"
-            );
-            
-            // 2. Amankan penugasan variabel projectRoot
-            content = content.replace(
-              /var projectRoot\s*=\s*cordovaProject\.root\s*;/g,
-              "var projectRoot = (cordovaProject && cordovaProject.root) || process.cwd();"
-            );
-
-            fs.writeFileSync(targetFile, content, "utf8");
-            console.log("BERHASIL TOTAL: prepare.js telah dipatch di tingkat fungsi.");
-          } else {
-            console.log("PERINGATAN: File prepare.js tidak ditemukan.");
-          }
-          '
->>>>>>> d03f6ea878506a9995faf4d169f0d6e0de2abae7
 
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova

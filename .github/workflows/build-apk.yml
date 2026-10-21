@@ -43,11 +43,36 @@ jobs:
           java-version: '8'
 
       - name: Install Gradle 6.9.4
+        shell: bash
         run: |
           set -e
-          wget -q https://services.gradle.org/distributions/gradle-6.9.4-bin.zip -O /tmp/gradle.zip
+          GRADLE_VERSION=6.9.4
+          GRADLE_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+          echo "Downloading Gradle ${GRADLE_VERSION}..."
+          # Use curl with retries (more reliable than wget on GitHub runners)
+          for i in 1 2 3; do
+            if curl -fL --retry 3 --retry-delay 5 -o /tmp/gradle.zip "$GRADLE_URL"; then
+              echo "Download successful"
+              break
+            fi
+            echo "Download attempt $i failed, retrying..."
+            sleep 5
+            if [ $i -eq 3 ]; then
+              echo "ERROR: Failed to download Gradle after 3 attempts"
+              exit 1
+            fi
+          done
+          # Verify file size (should be ~100MB)
+          FILESIZE=$(stat -c%s /tmp/gradle.zip)
+          echo "Downloaded size: $FILESIZE bytes"
+          if [ "$FILESIZE" -lt 50000000 ]; then
+            echo "ERROR: Downloaded file too small, download probably failed"
+            exit 1
+          fi
           sudo unzip -q /tmp/gradle.zip -d /opt
-          echo "/opt/gradle-6.9.4/bin" >> "$GITHUB_PATH"
+          echo "/opt/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
+          rm -f /tmp/gradle.zip
+          echo "Gradle ${GRADLE_VERSION} installed successfully"
 
       - name: Verify Gradle and Java
         run: |

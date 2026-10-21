@@ -132,18 +132,14 @@ jobs:
           }
           NODESCRIPT
 
-      - name: Add Android platform & Node.js Mobile plugin
+      - name: Add Platform, Plugin & Prepare Android
         shell: bash
         run: |
           set -e
-          if [ ! -d "platforms/android" ]; then
-            cordova platform add android@9.1.0 --nofetch || npm install cordova-android@9.1.0
-          fi
+          cordova platform add android@9.1.0 --save || true
           cordova plugin add nodejs-mobile-cordova --save || npm install nodejs-mobile-cordova --save
-          echo "Platform and plugin handled successfully."
-
-      - name: Prepare Android Platform
-        run: cordova prepare android
+          cordova prepare android
+          echo "Platform, plugin, and prepare completed successfully."
 
       - name: Permanent Hardcode SDK Patch & JCenter / versioncompare Fix
         shell: bash

@@ -22,11 +22,9 @@ jobs:
           java-version: '11'
 
       - name: Set up Android SDK
-        uses: subosito/android-action@v2
+        uses: android-actions/setup-android@v3
         with:
-          target-sdk: android-30
-          build-tools: 30.0.3
-          platform-versions: platforms;android-30
+          accept-android-sdk-licenses: true
 
       - name: Pasang Cordova Versi 9
         run: npm install -g cordova@9.0.0

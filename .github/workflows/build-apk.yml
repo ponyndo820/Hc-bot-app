@@ -54,6 +54,7 @@ jobs:
           which gradle
           gradle --version
           java -version
+          echo "JAVA_HOME=$JAVA_HOME"
 
       - name: Install Cordova
         run: npm install -g cordova@9.0.0
@@ -106,6 +107,15 @@ jobs:
       - name: Prepare Android Platform
         run: cordova prepare android
 
+      - name: Debug - list platforms/android contents
+        run: |
+          echo "=== platforms/android structure ==="
+          ls -la platforms/android/ || true
+          echo "=== Looking for gradlew ==="
+          find platforms/android -name "gradlew*" -type f || true
+          echo "=== Looking for build.gradle ==="
+          find platforms/android -name "build.gradle" -type f || true
+
       - name: Permanent Hardcode SDK Patch & JCenter Fix
         shell: bash
         run: |
@@ -124,14 +134,14 @@ jobs:
                 } else if (entry.isFile() && entry.name.endsWith(".gradle")) {
                   let content = fs.readFileSync(fullPath, "utf8");
                   
-                  // Ganti total semua deklarasi SDK agar menjadi angka pasti (hardcode) 29 / 21
+                  // Hardcode SDK versions
                   content = content.replace(/compileSdkVersion\s+.*/g, "compileSdkVersion 29");
                   content = content.replace(/targetSdkVersion\s+.*/g, "targetSdkVersion 29");
                   content = content.replace(/minSdkVersion\s+.*/g, "minSdkVersion 21");
                   content = content.replace(/buildToolsVersion\s+.*/g, "buildToolsVersion \"29.0.3\"");
                   content = content.replace(/unspecified/g, "29");
 
-                  // Perbaiki repositori JCenter yang mati
+                  // Fix dead JCenter
                   content = content.replace(/jcenter\(\)/g, "mavenCentral()");
                   content = content.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
 
@@ -151,14 +161,28 @@ jobs:
           rm -rf ~/.gradle/caches/ || true
           rm -rf platforms/android/.gradle/ || true
 
+      - name: Ensure Gradle Wrapper exists
+        shell: bash
+        run: |
+          set -e
+          if [ ! -f platforms/android/gradlew ]; then
+            echo "gradlew tidak ditemukan. Generating Gradle Wrapper..."
+            cd platforms/android
+            # Generate wrapper menggunakan Gradle 5.6.4 yang sudah diinstall
+            gradle wrapper --gradle-version 5.6.4
+            cd ../..
+          fi
+          chmod +x platforms/android/gradlew
+          ls -la platforms/android/gradlew
+          echo "Gradle Wrapper siap."
+
       - name: Build APK Directly with Gradle (Bypass Cordova Build Loop)
         shell: bash
         run: |
           set -o pipefail
-          chmod +x platforms/android/gradlew
           cd platforms/android
-          ./gradlew assembleDebug --verbose 2>&1 | tee ../build.log
-          cd ..
+          ./gradlew assembleDebug --stacktrace --info 2>&1 | tee ../../build.log
+          cd ../..
 
       - name: Find and collect APK
         if: success()

@@ -1,4 +1,3 @@
-
 name: Build APK
 
 on:
@@ -17,30 +16,39 @@ jobs:
     timeout-minutes: 30
 
     steps:
-    
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '14'
-          
-      - name: Set up JDK 17
+
+      # JDK 17 hanya dipakai untuk memasang Android SDK (sdkmanager terbaru butuh Java 17)
+      - name: Set up JDK 17 (untuk sdkmanager)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
           accept-android-sdk-licenses: true
-          
+
+      # [PERBAIKAN] cordova-android 9.1.0 hanya mau berjalan dengan JDK 1.8 (Java 8).
+      # Langkah ini harus SETELAH setup-android, karena menimpa JAVA_HOME ke Java 8.
+      - name: Set up JDK 8 (untuk Cordova 9)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
       - name: Install Cordova
         run: npm install -g cordova@9.0.0
-        
+
+      # [PERBAIKAN] Baris "ku" yang tersisa di langkah ini dihapus (perintah tidak ada, membuat langkah gagal)
       - name: Check build environment
         run: |
           node --version
@@ -48,7 +56,9 @@ jobs:
           cordova --version
           java -version
           echo "JAVA_HOME=$JAVA_HOME"
-          ku
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
       - name: Validate project files
         shell: bash
         run: |
@@ -58,7 +68,7 @@ jobs:
           test -f www/index.html
           test -f www/nodejs-project/main.js
           echo "Struktur proyek valid."
-          
+
       - name: Install project dependencies
         run: |
           if [ -f package-lock.json ]; then
@@ -66,22 +76,22 @@ jobs:
           else
             npm install --ignore-scripts
           fi
-          
+
       - name: Add Android platform
         run: cordova platform add android@9.1.0
-        
+
       - name: Add Node.js Mobile plugin
         run: cordova plugin add nodejs-mobile-cordova
-        
+
       - name: Verify Java for Gradle
         run: |
           java -version
           echo "JAVA_HOME=$JAVA_HOME"
           "$JAVA_HOME/bin/java" -version
-          
+
       - name: Build debug APK
         run: cordova build android --debug
-        
+
       - name: Verify APK
         shell: bash
         run: |
@@ -92,16 +102,16 @@ jobs:
             -path '*/outputs/apk/*/*.apk' \
             ! -name '*-androidTest*' \
             -print -quit)"
-            
+
           if [ -z "$APK" ]; then
             echo "ERROR: APK tidak ditemukan."
             find platforms/android -type f -name '*.apk' || true
             exit 1
           fi
-          
+
           cp "$APK" build-artifacts/hc-bot-app-debug.apk
           ls -lh build-artifacts/hc-bot-app-debug.apk
-          
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

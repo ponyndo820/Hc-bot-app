@@ -104,93 +104,76 @@ jobs:
           cordova platform add android@9.1.0
           cordova plugin add nodejs-mobile-cordova
 
-      - name: Robust Gradle & Plugin SDK Patch
+      - name: Prepare Android Platform (Generate Files & Hooks)
+        run: cordova prepare android
+
+      - name: Inject Global Gradle SDK Force Override & JCenter Fix
         shell: bash
         run: |
           node -e '
           const fs = require("fs");
           const path = require("path");
 
-          function patchFiles(dir) {
-            if (!fs.existsSync(dir)) return;
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            for (let entry of entries) {
-              const fullPath = path.join(dir, entry.name);
-              try {
-                if (entry.isDirectory()) {
-                  patchFiles(fullPath);
-                } else if (entry.isFile() && (entry.name.endsWith(".gradle") || entry.name === "project.properties")) {
-                  let content = fs.readFileSync(fullPath, "utf8");
-                  
-                  // Paksa ganti semua bentuk penentuan SDK yang tidak dikenal/unspecified menjadi angka eksplisit (29 / 21)
-                  content = content.replace(/compileSdkVersion[\s\S]*?(?=\n)/g, "compileSdkVersion 29");
-                  content = content.replace(/targetSdkVersion[\s\S]*?(?=\n)/g, "targetSdkVersion 29");
-                  content = content.replace(/minSdkVersion[\s\S]*?(?=\n)/g, "minSdkVersion 21");
-                  content = content.replace(/buildToolsVersion[\s\S]*?(?=\n)/g, "buildToolsVersion \"29.0.3\"");
-                  content = content.replace(/target=android-.*/g, "target=android-29");
-                  
-                  // Atasi jika ada variabel unspecified secara langsung
-                  content = content.replace(/unspecified/g, "29");
-
-                  fs.writeFileSync(fullPath, content, "utf8");
-                  console.log("Forced SDK patch on:", fullPath);
-                }
-              } catch (e) {
-                console.error("Failed patching:", fullPath, e.message);
+          // 1. Suntikkan skrip pemaksa SDK global ke root build.gradle
+          const buildGradlePath = "platforms/android/build.gradle";
+          if (fs.existsSync(buildGradlePath)) {
+            let content = fs.readFileSync(buildGradlePath, "utf8");
+            const overrideBlock = `
+          // [FORCE OVERRIDE] Paksa semua subproject/plugin menggunakan SDK 29 dan MinSDK 21
+          subprojects {
+              afterEvaluate { project ->
+                  if (project.hasProperty("android")) {
+                      if (project.android.hasProperty("compileSdkVersion")) {
+                          project.android.compileSdkVersion = 29
+                      }
+                      if (project.android.hasProperty("defaultConfig")) {
+                          project.android.defaultConfig.minSdkVersion = 21
+                          project.android.defaultConfig.targetSdkVersion = 29
+                      }
+                  }
               }
+          }
+          `;
+            if (!content.includes("FORCE OVERRIDE")) {
+              content += overrideBlock;
+              fs.writeFileSync(buildGradlePath, content, "utf8");
+              console.log("Berhasil menyuntikkan Global Gradle SDK Override.");
             }
           }
 
-          patchFiles("platforms/android");
-          patchFiles("plugins");
-          '
-
-
-      - name: Fix Gradle Repositories Globally (JCenter Fix)
-        shell: bash
-        run: |
-          node -e '
-          const fs = require("fs");
-          const path = require("path");
-
-          function patchGradleFiles(dir) {
+          // 2. Perbaiki JCenter global dan pastikan repositori benar
+          function fixGradleFiles(dir) {
             if (!fs.existsSync(dir)) return;
             const entries = fs.readdirSync(dir, { withFileTypes: true });
             for (let entry of entries) {
               const fullPath = path.join(dir, entry.name);
               try {
                 if (entry.isDirectory()) {
-                  patchGradleFiles(fullPath);
+                  fixGradleFiles(fullPath);
                 } else if (entry.isFile() && entry.name.endsWith(".gradle")) {
-                  let content = fs.readFileSync(fullPath, "utf8");
-                  content = content.replace(/jcenter\(\)/g, "mavenCentral()");
-                  content = content.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
-                  fs.writeFileSync(fullPath, content, "utf8");
+                  let c = fs.readFileSync(fullPath, "utf8");
+                  c = c.replace(/jcenter\(\)/g, "mavenCentral()");
+                  c = c.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
+                  fs.writeFileSync(fullPath, c, "utf8");
                 }
               } catch (e) {}
             }
           }
-
-          patchGradleFiles("platforms/android");
-          patchGradleFiles("plugins");
+          fixGradleFiles("platforms/android");
+          fixGradleFiles("plugins");
           '
-
-      - name: Show Cordova state
-        run: |
-          cordova platform ls
-          cordova plugin ls
-          ls -la platforms/android || true
 
       - name: Clean Gradle Cache Safely
         run: |
           rm -rf ~/.gradle/caches/ || true
           rm -rf platforms/android/.gradle/ || true
 
-      - name: Build debug APK
+      - name: Build debug APK Directly with Gradle
         shell: bash
         run: |
           set -o pipefail
-          cordova build android --debug --verbose 2>&1 | tee build.log
+          chmod +x platforms/android/gradlew
+          platforms/android/gradlew assembleDebug --verbose 2>&1 | tee build.log
 
       - name: Find and collect APK
         if: success()

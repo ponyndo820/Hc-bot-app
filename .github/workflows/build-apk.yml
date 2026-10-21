@@ -86,13 +86,41 @@ jobs:
             npm install --ignore-scripts
           fi
 
-      - name: Add Android platform
-        run: cordova platform add android@9.1.0
+      - name: Add Android platform & Node.js Mobile plugin
+        run: |
+          cordova platform add android@9.1.0
+          cordova plugin add nodejs-mobile-cordova
 
-      - name: Add Node.js Mobile plugin
-        run: cordova plugin add nodejs-mobile-cordova
+      - name: Patch Node.js Mobile Gradle Config
+        shell: bash
+        run: |
+          node -e '
+          const fs = require("fs");
+          const path = require("path");
 
-      # [PERBAIKAN] Mengganti JCenter secara aman tanpa merusak struktur nested blocks (maven { url ... })
+          function patchPlugin(dir) {
+            if (!fs.existsSync(dir)) return;
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (let entry of entries) {
+              const fullPath = path.join(dir, entry.name);
+              if (entry.isDirectory()) {
+                patchPlugin(fullPath);
+              } else if (entry.isFile() && entry.name === "build.gradle") {
+                let content = fs.readFileSync(fullPath, "utf8");
+                content = content.replace(/compileSdkVersion\s+rootProject\.hasProperty\(['\"][^'\"]+['\"]\) \? [^\:]+ :\s*[^,\n]+/g, "compileSdkVersion 29");
+                content = content.replace(/targetSdkVersion\s+rootProject\.hasProperty\(['\"][^'\"]+['\"]\) \? [^\:]+ :\s*[^,\n]+/g, "targetSdkVersion 29");
+                content = content.replace(/compileSdkVersion\s+unspecified/g, "compileSdkVersion 29");
+                content = content.replace(/targetSdkVersion\s+unspecified/g, "targetSdkVersion 29");
+                fs.writeFileSync(fullPath, content, "utf8");
+                console.log("Successfully patched:", fullPath);
+              }
+            }
+          }
+
+          patchPlugin("plugins/nodejs-mobile-cordova");
+          patchPlugin("platforms/android");
+          '
+
       - name: Fix Gradle Repositories (JCenter Fix)
         shell: bash
         run: |
@@ -109,22 +137,17 @@ jobs:
                 patchGradleFiles(fullPath);
               } else if (entry.isFile() && entry.name.endsWith(".gradle")) {
                 let content = fs.readFileSync(fullPath, "utf8");
-                
-                // Ganti jcenter() dengan mavenCentral() agar tidak error karena jcenter mati
                 content = content.replace(/jcenter\(\)/g, "mavenCentral()");
-                
-                // Pastikan google() ada di dalam block repositories
                 if (!content.includes("google()")) {
                   content = content.replace(/repositories\s*\{/, "repositories {\n        google()");
                 }
-                
                 fs.writeFileSync(fullPath, content, "utf8");
-                console.log("Patched repositories safely in:", fullPath);
               }
             }
           }
 
           patchGradleFiles("platforms/android");
+          patchGradleFiles("plugins");
           '
 
       - name: Show Cordova state
@@ -133,11 +156,20 @@ jobs:
           cordova plugin ls
           ls -la platforms/android || true
 
+      # [BARU] Bersihkan cache Gradle lama agar memaksa unduhan dependensi yang bersih
+      - name: Clean Gradle Cache
+        run: |
+          rm -rf ~/.gradle/caches/
+          rm -rf platforms/android/.gradle/
+
       - name: Build debug APK
         shell: bash
         run: |
           set +e
-          cordova build android --debug --verbose 2>&1 | tee build.log
+          cd platforms/android
+          ./gradlew clean
+          cd ../..
+          cordova build android --debug --verbose --refresh-dependencies 2>&1 | tee build.log
           STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
             echo "Cordova keluar dengan kode error $STATUS"

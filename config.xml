@@ -16,11 +16,11 @@
     <platform name="android">
         <!-- nodejs-mobile (Node.js 24) membutuhkan Android 7.0 (API 24) atau lebih baru -->
         <preference name="android-minSdkVersion" value="24" />
-        <icon src="res/icon.png" density="ldpi"/>
-        <icon src="res/icon.png" density="mdpi"/>
-        <icon src="res/icon.png" density="hdpi"/>
-        <icon src="res/icon.png" density="xhdpi"/>
-        <icon src="res/icon.png" density="xxhdpi"/>
-        <icon src="res/icon.png" density="xxxhdpi"/>
+        <icon src="./res/icon.png" density="ldpi"/>
+        <icon src="./res/icon.png" density="mdpi"/>
+        <icon src="./res/icon.png" density="hdpi"/>
+        <icon src="./res/icon.png" density="xhdpi"/>
+        <icon src="./res/icon.png" density="xxhdpi"/>
+        <icon src="./res/icon.png" density="xxxhdpi"/>
     </platform>
 </widget>

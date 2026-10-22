@@ -18,6 +18,7 @@ try {
   global.__baileysLoadError = String(e && e.stack || e);
 }
 
+
 // Inisialisasi Baileys menggunakan dynamic import() agar mendukung ESM
 async function initBaileysModule() {
   try {
@@ -26,11 +27,15 @@ async function initBaileysModule() {
     useMultiFileAuthState = baileys.useMultiFileAuthState;
     DisconnectReason = baileys.DisconnectReason;
     baileysReady = true;
+    console.log('Baileys berhasil dimuat');
   } catch (e) {
-    global.__baileysLoadError = String(e && e.stack || e);
-    send({ type: 'error', message: 'Baileys load failed: ' + (global.__baileysLoadError || '') });
+    const errDetail = String(e && (e.stack || e.message) || e);
+    global.__baileysLoadError = errDetail;
+    console.error('Baileys load error detail:', e);
+    send({ type: 'error', message: 'Baileys load failed: ' + errDetail });
   }
 }
+
 
 // Jalankan inisialisasi modul Baileys
 initBaileysModule();

@@ -162,24 +162,27 @@ jobs:
           cordova prepare android
           echo "Platform, plugin, and prepare completed successfully."
 
-      - name: Inject Node.js v18 (Official v18.20.4 Release - Strict Mode)
+      - name: Inject Node.js v18.20.4 (Official Release - Strict Mode)
         shell: bash
         run: |
           set -e
-          echo "Downloading Node.js v18.20.4 binaries from official nodejs-mobile..."
-          DIGIDEM_URL="https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android-arm64.zip"
+          echo "Downloading official Node.js v18.20.4 Android binaries..."
+          NODE_URL="https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android.zip"
           
           mkdir -p /tmp/node18
-          curl -fL --retry 3 -o /tmp/node18.zip "$DIGIDEM_URL"
+          curl -fL --retry 3 -o /tmp/node18.zip "$NODE_URL"
           
           echo "Extracting Node.js v18 zip..."
           unzip -q -o /tmp/node18.zip -d /tmp/node18/
           
-          echo "Searching for libnode.so..."
-          NEW_LIB=$(find /tmp/node18 -name "libnode.so" | head -n 1)
+          echo "Searching for arm64-v8a libnode.so..."
+          NEW_LIB=$(find /tmp/node18 -name "libnode.so" | grep "arm64-v8a" | head -n 1)
+          if [ -z "$NEW_LIB" ]; then
+            NEW_LIB=$(find /tmp/node18 -name "libnode.so" | head -n 1)
+          fi
           
           if [ -n "$NEW_LIB" ]; then
-            echo "Found new libnode.so at $NEW_LIB"
+            echo "Found libnode.so at $NEW_LIB"
             echo "Replacing existing libnode.so in platforms/android..."
             find platforms/android -name "libnode.so" -exec cp -f "$NEW_LIB" {} \;
             
@@ -191,6 +194,7 @@ jobs:
             echo "ERROR: libnode.so not found inside the downloaded zip!"
             exit 1
           fi
+
 
 
       - name: Clean Gradle Cache Safely

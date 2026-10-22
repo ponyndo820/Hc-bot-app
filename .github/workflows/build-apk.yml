@@ -251,15 +251,17 @@ jobs:
             content = removeGradleBlock(content, "bintray");
             content = removeGradleBlock(content, "install");
             content = content.replace(/compileSdkVersion\s+cdvCompileSdkVersion/g, "compileSdkVersion 29");
-            content = content.replace(/buildToolsVersion\s+cdvBuildToolsVersion/g, 'buildToolsVersion "29.0.3"');
             content = content.replace(/targetSdkVersion\s+cdvCompileSdkVersion/g, "targetSdkVersion 29");
             content = content.replace(/minSdkVersion\s+cdvMinSdkVersion/g, "minSdkVersion 24");
             content = content.replace(/compileSdkVersion\s*=?\s*[\d"']+/g, "compileSdkVersion = 29");
             content = content.replace(/targetSdkVersion\s*=?\s*[\d"']+/g, "targetSdkVersion = 29");
             content = content.replace(/minSdkVersion\s*=?\s*[\d"']+/g, "minSdkVersion = 24");
-            content = content.replace(/buildToolsVersion\s*=?\s*["']?[\d.]+["']?/g, 'buildToolsVersion = "29.0.3"');
             
-            // Tambahkan compileOptions Java 1.8 untuk mengatasi error compileDebugJavaWithJavac
+            // Hapus buildToolsVersion agar Gradle otomatis menggunakan build tools yang tersedia di SDK
+            content = content.replace(/buildToolsVersion\s+cdvBuildToolsVersion/g, "");
+            content = content.replace(/buildToolsVersion\s*=?\s*["']?[\d.]+["']?/g, "");
+
+            // Tambahkan compileOptions Java 1.8
             if (filePath.endsWith("app/build.gradle")) {
               if (!content.includes("compileOptions")) {
                 content = content.replace("android {", "android {\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }");

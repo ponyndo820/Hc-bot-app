@@ -76,3 +76,38 @@ function onDeviceReady() {
 
   $('btnPing').addEventListener('click', () => send({ cmd: 'ping', t: Date.now() }));$('btnInfo').addEventListener('click', () => send({ cmd: 'info' }));
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const getPairBtn = document.getElementById('getPairBtn');
+    if (getPairBtn) {
+        getPairBtn.addEventListener('click', async () => {
+            const phone = document.getElementById('phoneNumber').value.trim();
+            const container = document.getElementById('pairingContainer');
+            const display = document.getElementById('pairingCodeDisplay');
+
+            if (!phone || phone.length < 10) {
+                alert('Masukkan nomor WhatsApp yang valid (contoh: 62858xxxxxxxx)');
+                return;
+            }
+
+            display.innerText = 'Memuat...';
+            container.style.display = 'block';
+
+            try {
+                const response = await fetch(`http://localhost:3000/pair?number=${phone}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    display.innerText = data.code;
+                } else {
+                    display.innerText = 'Gagal!';
+                    alert(data.message || 'Terjadi kesalahan saat mengambil kode pairing.');
+                }
+            } catch (err) {
+                console.error(err);
+                display.innerText = 'Error!';
+                alert('Gagal terhubung ke server Node.js di dalam aplikasi.');
+            }
+        });
+    }
+});

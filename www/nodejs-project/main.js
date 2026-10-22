@@ -6,18 +6,30 @@ const os = require('os');
 let express, makeWASocket, useMultiFileAuthState, DisconnectReason, pino;
 let baileysReady = false;
 
+// Muat Express dan Pino secara normal (CommonJS)
 try {
   express = require('express');
   pino = require('pino');
-  const baileys = require('@whiskeysockets/baileys');
-  makeWASocket = baileys.default || baileys.makeWASocket;
-  useMultiFileAuthState = baileys.useMultiFileAuthState;
-  DisconnectReason = baileys.DisconnectReason;
-  baileysReady = true;
 } catch (e) {
-  // Will report via channel after ready
   global.__baileysLoadError = String(e && e.stack || e);
 }
+
+// Inisialisasi Baileys menggunakan dynamic import() agar mendukung ESM
+async function initBaileysModule() {
+  try {
+    const baileys = await import('@whiskeysockets/baileys');
+    makeWASocket = baileys.default || baileys.makeWASocket;
+    useMultiFileAuthState = baileys.useMultiFileAuthState;
+    DisconnectReason = baileys.DisconnectReason;
+    baileysReady = true;
+  } catch (e) {
+    global.__baileysLoadError = String(e && e.stack || e);
+    send({ type: 'error', message: 'Baileys load failed: ' + (global.__baileysLoadError || '') });
+  }
+}
+
+// Jalankan inisialisasi modul Baileys
+initBaileysModule();
 
 const startedAt = Date.now();
 function send(obj) {
@@ -41,6 +53,9 @@ function info() {
 }
 
 async function startBaileys(phoneNumber, res) {
+  if (!baileysReady) {
+    await initBaileysModule();
+  }
   if (!baileysReady) {
     const msg = 'Baileys gagal dimuat: ' + (global.__baileysLoadError || 'unknown');
     if (res && !res.headersSent) res.status(500).json({ success: false, message: msg });
@@ -79,7 +94,6 @@ async function startBaileys(phoneNumber, res) {
     });
 
     if (!sock.authState.creds.registered) {
-      // wait a bit for socket to be ready before requesting code
       setTimeout(async () => {
         try {
           const cleanNum = String(phoneNumber || '').replace(/[^0-9]/g, '');
@@ -117,7 +131,7 @@ async function startBaileys(phoneNumber, res) {
   }
 }
 
-// Express only if loaded
+// Express setup
 if (express) {
   const app = express();
   app.use(express.json());

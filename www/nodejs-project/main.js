@@ -1,5 +1,4 @@
-// Sisi Node.js (berjalan di dalam aplikasi)
-const cordova = require('cordova-bridge'); 
+const cordova = require('cordova-bridge');
 const path = require('path');
 const express = require('express');
 
@@ -27,7 +26,7 @@ app.get('/pair', async (req, res) => {
     if (!phoneNumber) {
         return res.status(400).json({ success: false, message: 'Nomor telepon tidak boleh kosong' });
     }
-
+    
     try {
         if (global.hcMain && !global.hcMain.authState.creds.registered) {
             const cleanNum = phoneNumber.replace(/[^0-9]/g, '');

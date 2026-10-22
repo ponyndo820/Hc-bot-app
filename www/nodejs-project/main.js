@@ -1,18 +1,19 @@
-// Node.js side (runs inside the app via nodejs-mobile).
-// M1: only prove the engine starts and channel works.
-// No external deps (express/baileys) so the process cannot crash on missing modules.
-
 const cordova = require('cordova-bridge');
 const path = require('path');
 const os = require('os');
+const express = require('express');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const pino = require('pino');
+
+const app = express();
+app.use(express.json());
 
 const startedAt = Date.now();
-
 function send(obj) {
   try {
     cordova.channel.send(JSON.stringify(obj));
   } catch (e) {
-    // channel may not be ready yet
+    // channel belum siap
   }
 }
 
@@ -28,6 +29,77 @@ function info() {
     hostname: os.hostname(),
   };
 }
+
+// Inisialisasi Sesi Baileys & Pairing Code
+async function startBaileys(phoneNumber, res) {
+  try {
+    const authFolder = path.resolve(process.env.DATADIR || '.', 'auth_info_baileys');
+    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
+
+    const sock = makeWASocket({
+      auth: state,
+      printQRInTerminal: false,
+      logger: pino({ level: 'silent' }),
+    });
+
+    global.hcMain = sock;
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect } = update;
+      if (connection === 'close') {
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        if (shouldReconnect) {
+          startBaileys();
+        }
+      } else if (connection === 'open') {
+        console.log('Bot WhatsApp berhasil terhubung!');
+      }
+    });
+
+    // Jika belum terdaftar, minta kode pairing
+    if (!sock.authState.creds.registered) {
+      setTimeout(async () => {
+        try {
+          const cleanNum = phoneNumber.replace(/[^0-9]/g, '');
+          const code = await sock.requestPairingCode(cleanNum);
+          const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
+          if (res && !res.headersSent) {
+            res.json({ success: true, code: formattedCode });
+          }
+        } catch (err) {
+          console.error('Gagal request pairing code:', err);
+          if (res && !res.headersSent) {
+            res.status(500).json({ success: false, message: err.message });
+          }
+        }
+      }, 3000);
+    } else {
+      if (res && !res.headersSent) {
+        res.json({ success: false, message: 'Bot sudah terdaftar sebelumnya.' });
+      }
+    }
+  } catch (err) {
+    console.error('Error Baileys:', err);
+    if (res && !res.headersSent) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+}
+
+// Endpoint API Pairing untuk Frontend
+app.get('/pair', async (req, res) => {
+    const phoneNumber = req.query.number;
+    if (!phoneNumber) {
+        return res.status(400).json({ success: false, message: 'Nomor telepon tidak boleh kosong' });
+    }
+    await startBaileys(phoneNumber, res);
+});
+
+app.listen(3000, () => {
+    console.log('Server Express berjalan di port 3000');
+});
 
 cordova.channel.on('message', (raw) => {
   try {
@@ -50,5 +122,4 @@ process.on('unhandledRejection', (e) => {
   send({ type: 'error', message: 'UnhandledRejection: ' + String(e && e.stack || e) });
 });
 
-// Signal ready to the Cordova side
 send({ type: 'ready', node: process.version });

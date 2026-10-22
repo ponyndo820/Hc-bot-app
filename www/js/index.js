@@ -29,7 +29,6 @@ function renderInfo(info) {
     ['Folder data', info.dataDir || '-'],
   ];
   el.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
-
   const major = parseInt(String(info.node || '').replace(/^v/, ''), 10);
   const warn = $('warn');
   if (!warn) return;
@@ -54,7 +53,6 @@ function onNodeMessage(raw) {
     case 'ready':
       setStatus('Mesin Node.js berjalan', 'ok');
       log('Node.js siap: ' + msg.node);
-      // auto-request info after ready
       send({ cmd: 'info' });
       break;
     case 'info':
@@ -86,19 +84,16 @@ function send(obj) {
 function onDeviceReady() {
   setStatus('Memulai mesin Node.js...', 'wait');
   log('deviceready');
-
   if (typeof nodejs === 'undefined') {
     setStatus('Plugin nodejs-mobile tidak ada', 'bad');
     log('ERROR: objek nodejs tidak ditemukan. Plugin mungkin gagal di-link.');
     return;
   }
-
   try {
     nodejs.channel.setListener(onNodeMessage);
   } catch (e) {
     log('setListener error: ' + e);
   }
-
   nodejs.start('main.js', (err) => {
     if (err) {
       setStatus('Gagal memulai Node.js', 'bad');
@@ -106,7 +101,6 @@ function onDeviceReady() {
       return;
     }
     log('Perintah start terkirim.');
-    // info will also be requested when 'ready' arrives
     setTimeout(() => send({ cmd: 'info' }), 800);
   });
 
@@ -114,21 +108,40 @@ function onDeviceReady() {
   const btnInfo = $('btnInfo');
   if (btnPing) btnPing.addEventListener('click', () => send({ cmd: 'ping', t: Date.now() }));
   if (btnInfo) btnInfo.addEventListener('click', () => send({ cmd: 'info' }));
-
-  // Pairing UI (M2) – show notice that Baileys not wired yet
-  const getPairBtn = $('getPairBtn');
-  if (getPairBtn) {
-    getPairBtn.addEventListener('click', () => {
-      const phone = ($('phoneNumber') || {}).value || '';
-      if (!phone || phone.trim().length < 10) {
-        alert('Masukkan nomor WhatsApp yang valid (contoh: 62858xxxxxxxx)');
-        return;
-      }
-      alert(
-        'Fitur pairing (Baileys) belum diaktifkan di tahap M1.\n' +
-          'Sekarang aplikasi hanya memastikan Node.js berjalan.\n' +
-          'Setelah status Node.js hijau, lanjut ke M2.'
-      );
-    });
-  }
 }
+
+// Event listener untuk tombol Pairing (M2)
+document.addEventListener('DOMContentLoaded', () => {
+    const getPairBtn = $('getPairBtn');
+    if (getPairBtn) {
+        getPairBtn.addEventListener('click', async () => {
+            const phone = ($('phoneNumber') || {}).value || '';
+            const container = $('pairingContainer');
+            const display = $('pairingCodeDisplay');
+            
+            if (!phone || phone.trim().length < 10) {
+                alert('Masukkan nomor WhatsApp yang valid (contoh: 62858xxxxxxxx)');
+                return;
+            }
+            
+            if (display) display.innerText = 'Memuat...';
+            if (container) container.style.display = 'block';
+            
+            try {
+                const response = await fetch(`http://localhost:3000/pair?number=${phone.trim()}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (display) display.innerText = data.code;
+                } else {
+                    if (display) display.innerText = 'Gagal!';
+                    alert(data.message || 'Terjadi kesalahan saat mengambil kode pairing.');
+                }
+            } catch (err) {
+                console.error(err);
+                if (display) display.innerText = 'Error!';
+                alert('Gagal terhubung ke server Node.js di dalam aplikasi.');
+            }
+        });
+    }
+});

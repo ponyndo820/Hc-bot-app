@@ -155,14 +155,14 @@ jobs:
           unzip -q /tmp/plugin.zip -d /tmp/plugin-extracted
           mv /tmp/plugin-extracted/*/* vendor/nodejs-mobile-cordova/
           
-          # 3. Tambahkan platform & plugin secara lokal (NPM 6 membuat cordova-fetch berjalan mulus)
+          # 3. Tambahkan platform & plugin secara lokal
           cordova platform add ./vendor/cordova-android --nofetch
           cordova plugin add ./vendor/nodejs-mobile-cordova --nofetch
           
           cordova prepare android
           echo "Platform, plugin, and prepare completed successfully."
 
-      - name: Inject Node.js v18 (Digidem Release)
+      - name: Inject Node.js v18 (Digidem Release - Strict Mode)
         shell: bash
         run: |
           set -e
@@ -170,22 +170,26 @@ jobs:
           DIGIDEM_URL="https://github.com/digidem/nodejs-mobile/releases/download/v18.16.0-0/nodejs-mobile-v18.16.0-0-android-arm64.zip"
           
           mkdir -p /tmp/node18
-          curl -fL -o /tmp/node18.zip "$DIGIDEM_URL" || true
+          curl -fL --retry 3 -o /tmp/node18.zip "$DIGIDEM_URL"
           
-          if [ -f /tmp/node18.zip ]; then
-            unzip -q -o /tmp/node18.zip -d /tmp/node18/
+          echo "Extracting Node.js v18 zip..."
+          unzip -q -o /tmp/node18.zip -d /tmp/node18/
+          
+          echo "Searching for libnode.so..."
+          NEW_LIB=$(find /tmp/node18 -name "libnode.so" | head -n 1)
+          
+          if [ -n "$NEW_LIB" ]; then
+            echo "Found new libnode.so at $NEW_LIB"
+            echo "Replacing existing libnode.so in platforms/android..."
+            find platforms/android -name "libnode.so" -exec cp -f "$NEW_LIB" {} \;
             
-            NEW_LIB=$(find /tmp/node18 -name "libnode.so" | head -n 1)
-            
-            if [ -n "$NEW_LIB" ]; then
-              echo "Found new libnode.so at $NEW_LIB"
-              find platforms/android -name "libnode.so" -exec cp -f "$NEW_LIB" {} \;
-              echo "Successfully replaced libnode.so with Node.js v18!"
-            else
-              echo "Warning: libnode.so not found in zip, keeping default."
-            fi
+            # Verifikasi hasil penggantian
+            echo "Verification - Replaced libnode.so locations:"
+            find platforms/android -name "libnode.so" -ls
+            echo "Successfully replaced libnode.so with Node.js v18!"
           else
-            echo "Warning: Download Digidem v18 failed, using default Node.js."
+            echo "ERROR: libnode.so not found inside the downloaded zip!"
+            exit 1
           fi
 
       - name: Permanent Hardcode SDK Patch & JCenter / versioncompare Fix
@@ -313,7 +317,7 @@ jobs:
           set -e
           mkdir -p build-artifacts
           APK_PATH="$(find platforms/android -type f -path '*/outputs/apk/*/*.apk' ! -name '*-androidTest*' -print -quit)"
-          if [ -z "$APK_PATH" ]; then
+          if [ -z "$APK_PATH" -> ]; then
             echo "ERROR: APK not found."
             find platforms/android -type f -name '*.apk' || true
             exit 1

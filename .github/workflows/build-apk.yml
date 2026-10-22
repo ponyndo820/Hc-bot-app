@@ -123,16 +123,16 @@ jobs:
           fi
           cd www/nodejs-project
           echo "Node for install: $(node -v)"
-          echo "package.json:"
           cat package.json
-          # Baileys >=6.7.18 forces Node 20 via preinstall. We pin 6.6.0 (Node 18 OK)
-          # and still ignore engines/scripts so CI never dies on engines check.
-          npm install --production --ignore-engines --legacy-peer-deps --no-audit --no-fund ||             npm install --production --ignore-scripts --legacy-peer-deps --no-audit --no-fund
-          echo "Installed packages:"
-          ls -la node_modules 2>/dev/null | head -30 || true
+          # Exact pin preferred. ignore-engines / ignore-scripts bypass Node 20 preinstall.
+          npm install --production --ignore-engines --legacy-peer-deps --no-audit --no-fund \
+            || npm install --production --ignore-scripts --legacy-peer-deps --no-audit --no-fund
+          if [ -f node_modules/@whiskeysockets/baileys/package.json ]; then
+            VER=$(node -p "require('./node_modules/@whiskeysockets/baileys/package.json').version")
+            echo "Installed baileys version: $VER"
+          fi
           test -d node_modules/@whiskeysockets/baileys && echo "OK: baileys present" || echo "WARN: baileys missing"
           test -d node_modules/express && echo "OK: express present" || echo "WARN: express missing"
-          # Drop optional heavy native deps that break on Android/nodejs-mobile
           rm -rf node_modules/sharp node_modules/@img 2>/dev/null || true
           cd ../..
 
@@ -173,16 +173,16 @@ jobs:
               python3 -c "import struct,zlib; sig=b'\x89PNG\r\n\x1a\n'; ihdr=struct.pack('>IIBBBBB',1,1,8,2,0,0,0); raw=b'\x00\x00\x00\x00'; def chunk(t,d): return struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff); open('res/icon.png','wb').write(sig+chunk(b'IHDR',ihdr)+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b''))"
             fi
           fi
-          
+
           mkdir -p vendor/cordova-android
           curl -fL -o /tmp/cordova-android.tgz https://registry.npmjs.org/cordova-android/-/cordova-android-9.1.0.tgz
           tar -xzf /tmp/cordova-android.tgz -C vendor/cordova-android --strip-components=1
-          
+
           mkdir -p vendor/nodejs-mobile-cordova
           curl -fL -o /tmp/plugin.zip https://github.com/nodejs-mobile/nodejs-mobile-cordova/archive/refs/heads/master.zip
           unzip -q /tmp/plugin.zip -d /tmp/plugin-extracted
           mv /tmp/plugin-extracted/*/* vendor/nodejs-mobile-cordova/
-          
+
           cordova platform add ./vendor/cordova-android --nofetch
           cordova plugin add ./vendor/nodejs-mobile-cordova --nofetch
           cordova prepare android
@@ -253,19 +253,20 @@ jobs:
             content = content.replace(/compileSdkVersion\s+cdvCompileSdkVersion/g, "compileSdkVersion 29");
             content = content.replace(/targetSdkVersion\s+cdvCompileSdkVersion/g, "targetSdkVersion 29");
             content = content.replace(/minSdkVersion\s+cdvMinSdkVersion/g, "minSdkVersion 24");
-            content = content.replace(/compileSdkVersion\s*=?\s*[\d"']+/g, "compileSdkVersion = 29");
-            content = content.replace(/targetSdkVersion\s*=?\s*[\d"']+/g, "targetSdkVersion = 29");
-            content = content.replace(/minSdkVersion\s*=?\s*[\d"']+/g, "minSdkVersion = 24");
-            
+            content = content.replace(/compileSdkVersion\s*=?\s*[\d"']+/g, "compileSdkVersion 29");
+            content = content.replace(/targetSdkVersion\s*=?\s*[\d"']+/g, "targetSdkVersion 29");
+            content = content.replace(/minSdkVersion\s*=?\s*[\d"']+/g, "minSdkVersion 24");
             content = content.replace(/buildToolsVersion\s+cdvBuildToolsVersion/g, "");
             content = content.replace(/buildToolsVersion\s*=?\s*["']?[\d.]+["']?/g, "");
-
             if (filePath.endsWith("app/build.gradle")) {
               if (!content.includes("compileOptions")) {
                 content = content.replace("android {", "android {\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }");
               }
+              // Ensure compileSdkVersion exists even if Cordova left a variable
+              if (!/compileSdkVersion\s+\d+/.test(content)) {
+                content = content.replace(/android\s*\{/, "android {\n    compileSdkVersion 29\n    defaultConfig {\n        minSdkVersion 24\n        targetSdkVersion 29\n    }");
+              }
             }
-
             if (content.includes("repositories") && !content.includes("google()")) {
               content = content.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
             }
@@ -311,6 +312,8 @@ jobs:
         run: |
           set -e
           set -o pipefail
+
+          # 1) Self-heal libnode.so (arm64 only)
           NODE_URL="https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android.zip"
           mkdir -p /tmp/node18-abi
           if [ ! -f /tmp/node18.zip ]; then
@@ -319,19 +322,72 @@ jobs:
           unzip -q -o /tmp/node18.zip -d /tmp/node18-abi/
           for ABI in arm64-v8a armeabi-v7a x86_64 x86; do
             SRC=$(find /tmp/node18-abi -path "*/${ABI}/libnode.so" -print -quit 2>/dev/null || true)
-            if [ -z "$SRC" ]; then continue; fi
+            [ -z "$SRC" ] && continue
             while IFS= read -r DEST; do
               cp -f "$SRC" "$DEST"
             done < <(find platforms/android -path "*/${ABI}/libnode.so" 2>/dev/null || true)
           done
           find platforms/android -name 'libnode.so' ! -path '*/arm64-v8a/*' -print -delete 2>/dev/null || true
-          
+          rm -rf platforms/android/app/libs/cdvnodejsmobile/libnode/bin/armeabi-v7a \
+                 platforms/android/app/libs/cdvnodejsmobile/libnode/bin/x86 \
+                 platforms/android/app/libs/cdvnodejsmobile/libnode/bin/x86_64 2>/dev/null || true
+
+          # 2) REWRITE gradle.properties completely (never append → no "29cdvBuildMultipleApks")
           GRADLE_PROPS="platforms/android/gradle.properties"
-          touch "$GRADLE_PROPS"
-          echo 'cdvBuildMultipleApks=false' >> "$GRADLE_PROPS"
-          
+          # Keep any org.gradle.* lines from existing file if present
+          EXTRA=""
+          if [ -f "$GRADLE_PROPS" ]; then
+            EXTRA=$(grep -E '^(org\.gradle|systemProp)' "$GRADLE_PROPS" 2>/dev/null || true)
+          fi
+          cat > "$GRADLE_PROPS" << 'PROPS'
+          # Generated clean by CI – do not append to previous content
+          org.gradle.jvmargs=-Xmx2048m
+          android.useAndroidX=true
+          android.enableJetifier=true
+          cdvBuildMultipleApks=false
+          cdvMinSdkVersion=24
+          cdvTargetSdkVersion=29
+          cdvCompileSdkVersion=29
+          PROPS
+          # Strip leading spaces from heredoc indentation
+          sed -i 's/^          //' "$GRADLE_PROPS"
+          if [ -n "$EXTRA" ]; then
+            echo "$EXTRA" >> "$GRADLE_PROPS"
+          fi
+          echo "===== gradle.properties (cat -A) ====="
+          cat -A "$GRADLE_PROPS"
+          echo "======================================"
+
+          # 3) Force compileSdkVersion / target / min in every build.gradle
+          find platforms/android -name "*.gradle" -print0 | while IFS= read -r -d "" f; do
+            # Fix variable references
+            sed -i \
+              -e 's/compileSdkVersion[[:space:]]*cdvCompileSdkVersion/compileSdkVersion 29/g' \
+              -e 's/targetSdkVersion[[:space:]]*cdvTargetSdkVersion/targetSdkVersion 29/g' \
+              -e 's/targetSdkVersion[[:space:]]*cdvCompileSdkVersion/targetSdkVersion 29/g' \
+              -e 's/minSdkVersion[[:space:]]*cdvMinSdkVersion/minSdkVersion 24/g' \
+              "$f" 2>/dev/null || true
+            # Numeric forms (with or without =)
+            sed -i -E \
+              -e 's/compileSdkVersion[[:space:]]*=?[[:space:]]*[0-9]+/compileSdkVersion 29/g' \
+              -e 's/targetSdkVersion[[:space:]]*=?[[:space:]]*[0-9]+/targetSdkVersion 29/g' \
+              -e 's/minSdkVersion[[:space:]]*=?[[:space:]]*[0-9]+/minSdkVersion 24/g' \
+              "$f" 2>/dev/null || true
+          done
+
+          # Ensure app/build.gradle has compileSdkVersion if still missing
+          APP_BG="platforms/android/app/build.gradle"
+          if [ -f "$APP_BG" ] && ! grep -qE 'compileSdkVersion[[:space:]]+[0-9]+' "$APP_BG"; then
+            sed -i 's/android[[:space:]]*{/android {\n    compileSdkVersion 29\n    defaultConfig { minSdkVersion 24; targetSdkVersion 29 }/' "$APP_BG"
+          fi
+
+          echo "===== compileSdk lines ====="
+          grep -rn "compileSdkVersion\|cdvCompileSdkVersion\|cdvBuildMultipleApks" platforms/android --include="*.gradle" --include="*.properties" | head -40 || true
+          echo "============================"
+
+          # 4) Build
           cd platforms/android
-          ./gradlew assembleDebug --stacktrace 2>&1 | tee ../../build.log
+          ./gradlew assembleDebug --stacktrace --info 2>&1 | tee ../../build.log
           cd ../..
 
       - name: Find and collect APK
@@ -341,7 +397,22 @@ jobs:
           set -e
           mkdir -p build-artifacts
           APK_PATH="$(find platforms/android -type f -path '*/outputs/apk/*/*.apk' ! -name '*-androidTest*' -print -quit)"
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: APK not found"
+            find platforms/android -name '*.apk' || true
+            exit 1
+          fi
           cp "$APK_PATH" build-artifacts/hc-bot-app-debug.apk
+          ls -lh build-artifacts/hc-bot-app-debug.apk
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hc-bot-app-build-log
+          path: build.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload debug APK
         if: success()

@@ -14,34 +14,34 @@ jobs:
     name: Build Hc Bot App
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Set up Node.js 16
         uses: actions/setup-node@v4
         with:
           node-version: '16'
-          
+
       - name: Set up JDK 17 (untuk sdkmanager)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
           accept-android-sdk-licenses: true
-          
+
       - name: Set up JDK 8 (untuk build Gradle & Cordova)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '8'
-          
+
       - name: Install Gradle 6.9.4
         shell: bash
         run: |
@@ -71,21 +71,21 @@ jobs:
           echo "/opt/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
           rm -f /tmp/gradle.zip
           echo "Gradle ${GRADLE_VERSION} installed successfully"
-          
+
       - name: Verify Gradle and Java
         run: |
           which gradle
           gradle --version
           java -version
           echo "JAVA_HOME=$JAVA_HOME"
-          
+
       - name: Install Cordova and Downgrade NPM to v6 (Fix Parser Bug)
         run: |
           npm install -g npm@6
           npm install -g cordova@9.0.0
           npm --version
           cordova --version
-          
+
       - name: Check build environment
         run: |
           node --version
@@ -95,7 +95,7 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME"
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          
+
       - name: Validate project files
         shell: bash
         run: |
@@ -105,7 +105,7 @@ jobs:
           test -f www/index.html || { echo "ERROR: Missing www/index.html"; exit 1; }
           test -f www/nodejs-project/main.js || { echo "ERROR: Missing www/nodejs-project/main.js"; exit 1; }
           echo "Project structure looks valid."
-          
+
       - name: Install project dependencies
         run: |
           if [ -f package-lock.json ]; then
@@ -113,7 +113,15 @@ jobs:
           else
             npm install --ignore-scripts
           fi
-          
+
+      - name: Install Baileys & Express inside www/nodejs-project
+        run: |
+          if [ -d "www/nodejs-project" ]; then
+            cd www/nodejs-project
+            npm install --production
+            cd ../..
+          fi
+
       - name: Ensure SDK preferences in config.xml
         shell: bash
         run: |
@@ -135,13 +143,12 @@ jobs:
             console.log("SDK preferences already present");
           }
           NODESCRIPT
-          
+
       - name: Add Platform, Plugin & Prepare Android (Manual Local Extract)
         shell: bash
         run: |
           set -e
           rm -rf vendor platforms plugins node_modules package-lock.json || true
-          # Pastikan icon yang di-refer config.xml ada
           mkdir -p res
           if [ ! -f res/icon.png ]; then
             SRC=$(find res -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) | head -1 || true)
@@ -149,71 +156,45 @@ jobs:
               echo "Creating res/icon.png from $SRC"
               cp -f "$SRC" res/icon.png
             else
-              echo "WARNING: no image in res/; creating minimal placeholder PNG"
               python3 -c "import struct,zlib; sig=b'\x89PNG\r\n\x1a\n'; ihdr=struct.pack('>IIBBBBB',1,1,8,2,0,0,0); raw=b'\x00\x00\x00\x00'; def chunk(t,d): return struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff); open('res/icon.png','wb').write(sig+chunk(b'IHDR',ihdr)+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b''))"
             fi
           fi
-          ls -la res/ || true
           
-          # 1. Download cordova-android 9.1.0 secara langsung via curl
           mkdir -p vendor/cordova-android
-          echo "Downloading cordova-android 9.1.0..."
           curl -fL -o /tmp/cordova-android.tgz https://registry.npmjs.org/cordova-android/-/cordova-android-9.1.0.tgz
           tar -xzf /tmp/cordova-android.tgz -C vendor/cordova-android --strip-components=1
           
-          # 2. Download nodejs-mobile-cordova langsung dari GitHub sebagai zip dan ekstrak ke vendor/plugins
           mkdir -p vendor/nodejs-mobile-cordova
-          echo "Downloading nodejs-mobile-cordova source from GitHub..."
           curl -fL -o /tmp/plugin.zip https://github.com/nodejs-mobile/nodejs-mobile-cordova/archive/refs/heads/master.zip
           unzip -q /tmp/plugin.zip -d /tmp/plugin-extracted
           mv /tmp/plugin-extracted/*/* vendor/nodejs-mobile-cordova/
           
-          # 3. Tambahkan platform & plugin secara lokal
           cordova platform add ./vendor/cordova-android --nofetch
           cordova plugin add ./vendor/nodejs-mobile-cordova --nofetch
-          
           cordova prepare android
-          echo "Platform, plugin, and prepare completed successfully."
-          
+
       - name: Inject Node.js v18.20.4 (Official Release - multi-arch)
         shell: bash
         run: |
           set -e
-          echo "Downloading official Node.js v18.20.4 Android binaries..."
           NODE_URL="https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android.zip"
           mkdir -p /tmp/node18
           curl -fL --retry 3 -o /tmp/node18.zip "$NODE_URL"
-          echo "Extracting Node.js v18 zip..."
           unzip -q -o /tmp/node18.zip -d /tmp/node18/
-          # Ganti libnode.so per-ABI agar arm64 & armeabi-v7a sesuai
           for ABI in arm64-v8a armeabi-v7a x86_64 x86; do
             SRC=$(find /tmp/node18 -path "*/$ABI/libnode.so" -print -quit || true)
-            if [ -z "$SRC" ]; then
-              echo "Skip ABI $ABI (tidak ada di release)"
-              continue
-            fi
-            echo "Found $ABI libnode.so at $SRC"
-            # Cari lokasi target di platform (bisa di jniLibs atau libs plugin)
+            if [ -z "$SRC" ]; then continue; fi
             while IFS= read -r DEST; do
-              echo "  -> $DEST"
               cp -f "$SRC" "$DEST"
             done < <(find platforms/android -path "*/$ABI/libnode.so" 2>/dev/null || true)
           done
-          echo "Verification - libnode.so locations:"
-          find platforms/android -name "libnode.so" -ls || true
-          COUNT=$(find platforms/android -name "libnode.so" | wc -l)
-          if [ "$COUNT" -eq 0 ]; then
-            echo "ERROR: tidak ada libnode.so di platforms/android setelah inject"
-            exit 1
-          fi
-          echo "Successfully injected Node.js v18.20.4 ($COUNT file(s))."
-          
+
       - name: Clean Gradle Cache Safely
         run: |
           rm -rf ~/.gradle/caches/ || true
           rm -rf platforms/android/.gradle/ || true
-          
-      - name: Permanent Hardcode SDK Patch & JCenter / versioncompare Fix (Before Wrapper)
+
+      - name: Permanent Hardcode SDK Patch & JCenter / versioncompare Fix
         shell: bash
         run: |
           node << 'NODESCRIPT'
@@ -268,7 +249,6 @@ jobs:
             }
             if (content !== original) {
               fs.writeFileSync(filePath, content, "utf8");
-              console.log("Patched: " + filePath);
               return true;
             }
             return false;
@@ -290,131 +270,48 @@ jobs:
           }
           walk("platforms/android");
           walk("plugins");
-          console.log("Berhasil menerapkan hardcode patch + versioncompare fix.");
           NODESCRIPT
+
       - name: Ensure Gradle Wrapper exists (Gradle 6.9.4)
         shell: bash
         run: |
           set -e
           cd platforms/android
-          echo "Generating Gradle Wrapper with 6.9.4..."
           gradle wrapper --gradle-version 6.9.4
           if [ -f gradle/wrapper/gradle-wrapper.properties ]; then
             sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-6.9.4-all.zip|' gradle/wrapper/gradle-wrapper.properties
-            cat gradle/wrapper/gradle-wrapper.properties
           fi
           chmod +x gradlew
-          ls -la gradlew
-          echo "Gradle Wrapper siap (6.9.4)."
           cd ../..
-      - name: Build APK Directly with Gradle (Bypass Cordova Build Loop)
+
+      - name: Build APK Directly with Gradle
         shell: bash
         run: |
           set -e
           set -o pipefail
-          # ============================================================
-          # Fix libnode ABI + gradle.properties + abiFilters (aman)
-          # Jangan rusak sintaks Groovy di hotapp-build.gradle
-          # ============================================================
           NODE_URL="https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android.zip"
           mkdir -p /tmp/node18-abi
           if [ ! -f /tmp/node18.zip ]; then
-            echo "Downloading Node.js v18.20.4 Android binaries for ABI fix..."
             curl -fL --retry 3 -o /tmp/node18.zip "$NODE_URL"
           fi
           unzip -q -o /tmp/node18.zip -d /tmp/node18-abi/
-          echo "Placing correct libnode.so per ABI..."
           for ABI in arm64-v8a armeabi-v7a x86_64 x86; do
             SRC=$(find /tmp/node18-abi -path "*/${ABI}/libnode.so" -print -quit 2>/dev/null || true)
-            if [ -z "$SRC" ]; then
-              echo "  skip $ABI (not in release)"
-              continue
-            fi
+            if [ -z "$SRC" ]; then continue; fi
             while IFS= read -r DEST; do
               cp -f "$SRC" "$DEST"
-              echo "  fixed $DEST"
             done < <(find platforms/android -path "*/${ABI}/libnode.so" 2>/dev/null || true)
           done
-          # Hapus hanya file libnode non-arm64 (jangan hapus folder proyek)
-          echo "Removing non-arm64-v8a libnode.so files..."
           find platforms/android -name 'libnode.so' ! -path '*/arm64-v8a/*' -print -delete 2>/dev/null || true
-          echo "Remaining libnode.so:"
-          find platforms/android -name "libnode.so" -ls || true
-          # --- gradle.properties aman (newline + tidak corrupt) ---
+          
           GRADLE_PROPS="platforms/android/gradle.properties"
           touch "$GRADLE_PROPS"
-          if [ -s "$GRADLE_PROPS" ] && [ "$(tail -c1 "$GRADLE_PROPS" | wc -l)" -eq 0 ]; then
-            echo "" >> "$GRADLE_PROPS"
-          fi
-          sed -i '/cdvBuildMultipleApks/d' "$GRADLE_PROPS" 2>/dev/null || true
-          sed -i 's/[0-9]*cdvBuildMultipleApks=false//' "$GRADLE_PROPS" 2>/dev/null || true
           echo 'cdvBuildMultipleApks=false' >> "$GRADLE_PROPS"
-          echo "--- gradle.properties ---"
-          cat "$GRADLE_PROPS"
-          echo "-------------------------"
-          # Patch ABI filters HANYA pada bentuk assignment yang valid.
-          # JANGAN sentuh akses properti seperti:
-          #   android.defaultConfig.ndk.abiFilters.each { ... }
-          # (itu yang merusak hotapp-build.gradle sebelumnya)
-          node << 'NODEEOF'
-          const fs = require("fs");
-          const path = require("path");
-          function walk(dir, out) {
-            if (!fs.existsSync(dir)) return;
-            for (const f of fs.readdirSync(dir)) {
-              const full = path.join(dir, f);
-              let st;
-              try { st = fs.statSync(full); } catch (e) { continue; }
-              if (st.isDirectory()) walk(full, out);
-              else if (f.endsWith(".gradle")) out.push(full);
-            }
-          }
-          const files = [];
-          walk("platforms/android", files);
-          for (const file of files) {
-            let t = fs.readFileSync(file, "utf8");
-            const orig = t;
-            // Hanya ganti assignment list: abiFilters = ["a", "b"]
-            t = t.replace(
-              /abiFilters\s*=\s*\[[^\]]*\]/g,
-              'abiFilters = ["arm64-v8a"]'
-            );
-            // Bentuk ndk { abiFilters "a", "b" }  (string args, BUKAN property access)
-            // Hanya jika baris mengandung abiFilters diikuti string literal
-            t = t.replace(
-              /^(\s*)abiFilters\s+"[^"]+"(?:\s*,\s*"[^"]+")*\s*$/gm,
-              '$1abiFilters "arm64-v8a"'
-            );
-            // app/build.gradle: pastikan ada ndk abiFilters arm64 di defaultConfig
-            if (file.replace(/\\/g, "/").endsWith("app/build.gradle")) {
-              if (!/abiFilters\s*=\s*\[\s*"arm64-v8a"\s*\]/.test(t) &&
-                  !/abiFilters\s+"arm64-v8a"/.test(t)) {
-                if (/defaultConfig\s*\{/.test(t) && !/ndk\s*\{[\s\S]*?abiFilters/.test(t)) {
-                  t = t.replace(/defaultConfig\s*\{/, function (m) {
-                    return m + '\n        ndk {\n            abiFilters "arm64-v8a"\n        }';
-                  });
-                }
-              }
-            }
-            if (t !== orig) {
-              fs.writeFileSync(file, t, "utf8");
-              console.log("Patched ABI filters:", file);
-            }
-          }
-          console.log("ABI filter patch done (safe mode).");
-          NODEEOF
-          echo "Sample abiFilters after patch:"
-          grep -rn "abiFilters" platforms/android --include="*.gradle" 2>/dev/null | head -40 || true
-          # Pastikan hotapp-build.gradle masih valid (tidak ada sintaks rusak)
-          if [ -f platforms/android/nodejs-mobile-cordova/hotapp-build.gradle ]; then
-            echo "--- hotapp-build.gradle (relevant lines) ---"
-            grep -n "abiFilters\|defaultConfig\|ndk" platforms/android/nodejs-mobile-cordova/hotapp-build.gradle | head -30 || true
-          fi
           
           cd platforms/android
-          ./gradlew assembleDebug --stacktrace --info 2>&1 | tee ../../build.log
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee ../../build.log
           cd ../..
-          
+
       - name: Find and collect APK
         if: success()
         shell: bash
@@ -422,23 +319,8 @@ jobs:
           set -e
           mkdir -p build-artifacts
           APK_PATH="$(find platforms/android -type f -path '*/outputs/apk/*/*.apk' ! -name '*-androidTest*' -print -quit)"
-          if [ -z "$APK_PATH" ]; then
-            echo "ERROR: APK not found."
-            find platforms/android -type f -name '*.apk' || true
-            exit 1
-          fi
           cp "$APK_PATH" build-artifacts/hc-bot-app-debug.apk
-          ls -lh build-artifacts/hc-bot-app-debug.apk
-          
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: hc-bot-app-build-log
-          path: build.log
-          if-no-files-found: ignore
-          retention-days: 7
-          
+
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4

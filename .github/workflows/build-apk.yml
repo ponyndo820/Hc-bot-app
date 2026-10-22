@@ -132,7 +132,7 @@ jobs:
           }
           NODESCRIPT
 
-      - name: Add Platform, Plugin & Prepare Android (Local Offline Mode)
+      - name: Add Platform, Plugin & Prepare Android (Direct GitHub Source)
         shell: bash
         run: |
           set -e
@@ -144,15 +144,11 @@ jobs:
           curl -fL -o /tmp/cordova-android.tgz https://registry.npmjs.org/cordova-android/-/cordova-android-9.1.0.tgz
           tar -xzf /tmp/cordova-android.tgz -C vendor/cordova-android --strip-components=1
           
-          # 2. Download nodejs-mobile-cordova plugin secara langsung via curl
-          mkdir -p vendor/nodejs-mobile-cordova
-          echo "Downloading nodejs-mobile-cordova..."
-          curl -fL -o /tmp/nodejs-mobile-cordova.tgz https://registry.npmjs.org/nodejs-mobile-cordova/-/nodejs-mobile-cordova-0.6.2.tgz
-          tar -xzf /tmp/nodejs-mobile-cordova.tgz -C vendor/nodejs-mobile-cordova --strip-components=1
-          
-          # 3. Tambahkan platform & plugin secara lokal (bypass cordova-fetch bug)
+          # 2. Tambahkan platform secara lokal (nofetch)
           cordova platform add ./vendor/cordova-android --nofetch
-          cordova plugin add ./vendor/nodejs-mobile-cordova --nofetch
+          
+          # 3. Tambahkan plugin langsung dari repository resmi Janea Systems di GitHub
+          cordova plugin add https://github.com/janeasystems/nodejs-mobile-cordova.git --save
           
           cordova prepare android
           echo "Platform, plugin, and prepare completed successfully."

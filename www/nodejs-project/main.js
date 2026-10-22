@@ -1,11 +1,9 @@
 // Node.js side – M2: channel + Express pairing API + Baileys (Node 18 compatible)
-
 const os = require('os');
 const path = require('path');
 const cordova = require('cordova-bridge');
 const { Crypto } = require('@peculiar/webcrypto');
 globalThis.crypto = new Crypto();
-
 
 let express, makeWASocket, useMultiFileAuthState, DisconnectReason, pino;
 let baileysReady = false;
@@ -16,8 +14,7 @@ try {
   pino = require('pino');
 } catch (e) {
   global.__baileysLoadError = String(e && e.stack || e);
-}
-
+} // <-- Kurung kurawal tutup catch Express ditambahkan di sini
 
 // Inisialisasi Baileys menggunakan dynamic import() agar mendukung ESM
 async function initBaileysModule() {
@@ -38,8 +35,8 @@ async function initBaileysModule() {
     global.__baileysLoadError = errStr;
     console.error('Baileys load error:', e);
     send({ type: 'error', message: 'Baileys err: ' + errStr });
-  }
-}
+  } // <-- Kurung kurawal tutup catch initBaileysModule ditambahkan di sini
+} // <-- Kurung kurawal tutup fungsi initBaileysModule ditambahkan di sini
 
 // Jalankan inisialisasi modul Baileys
 initBaileysModule();

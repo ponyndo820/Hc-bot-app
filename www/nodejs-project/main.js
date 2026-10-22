@@ -29,13 +29,17 @@ async function initBaileysModule() {
     baileysReady = true;
     console.log('Baileys berhasil dimuat');
   } catch (e) {
-    const errDetail = String(e && (e.stack || e.message) || e);
-    global.__baileysLoadError = errDetail;
-    console.error('Baileys load error detail:', e);
-    send({ type: 'error', message: 'Baileys load failed: ' + errDetail });
+    let errStr = '';
+    try {
+      errStr = e.stack || e.message || JSON.stringify(e);
+    } catch (ex) {
+      errStr = String(e);
+    }
+    global.__baileysLoadError = errStr;
+    console.error('Baileys load error:', e);
+    send({ type: 'error', message: 'Baileys err: ' + errStr });
   }
 }
-
 
 // Jalankan inisialisasi modul Baileys
 initBaileysModule();

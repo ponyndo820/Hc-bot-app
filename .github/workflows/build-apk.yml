@@ -316,9 +316,8 @@ jobs:
           set -o pipefail
 
           # ============================================================
-          # Fix 1: libnode.so ABI mismatch (arm64 di folder armeabi-v7a)
-          # Fix 2: gradle.properties corrupt → "29cdvBuildMultipleApks=false"
-          #         (append tanpa newline menempel ke nilai 29)
+          # Fix libnode ABI + gradle.properties + abiFilters (aman)
+          # Jangan rusak sintaks Groovy di hotapp-build.gradle
           # ============================================================
           NODE_URL="https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android.zip"
           mkdir -p /tmp/node18-abi
@@ -341,30 +340,30 @@ jobs:
             done < <(find platforms/android -path "*/${ABI}/libnode.so" 2>/dev/null || true)
           done
 
-          # Hapus libnode non-arm64 saja (jangan hapus folder proyek)
+          # Hapus hanya file libnode non-arm64 (jangan hapus folder proyek)
           echo "Removing non-arm64-v8a libnode.so files..."
           find platforms/android -name 'libnode.so' ! -path '*/arm64-v8a/*' -print -delete 2>/dev/null || true
 
           echo "Remaining libnode.so:"
           find platforms/android -name "libnode.so" -ls || true
 
-          # --- gradle.properties: pastikan newline, set properti dengan aman ---
+          # --- gradle.properties aman (newline + tidak corrupt) ---
           GRADLE_PROPS="platforms/android/gradle.properties"
           touch "$GRADLE_PROPS"
-          # pastikan file diakhiri newline agar append tidak menempel
           if [ -s "$GRADLE_PROPS" ] && [ "$(tail -c1 "$GRADLE_PROPS" | wc -l)" -eq 0 ]; then
             echo "" >> "$GRADLE_PROPS"
           fi
-          # hapus baris corrupt / lama lalu tulis ulang
           sed -i '/cdvBuildMultipleApks/d' "$GRADLE_PROPS" 2>/dev/null || true
-          # perbaiki baris yang sempat corrupt (nilai menempel, mis. 29cdvBuildMultipleApks=false)
           sed -i 's/[0-9]*cdvBuildMultipleApks=false//' "$GRADLE_PROPS" 2>/dev/null || true
           echo 'cdvBuildMultipleApks=false' >> "$GRADLE_PROPS"
           echo "--- gradle.properties ---"
           cat "$GRADLE_PROPS"
           echo "-------------------------"
 
-          # Paksa semua abiFilters di file gradle → hanya arm64-v8a
+          # Patch ABI filters HANYA pada bentuk assignment yang valid.
+          # JANGAN sentuh akses properti seperti:
+          #   android.defaultConfig.ndk.abiFilters.each { ... }
+          # (itu yang merusak hotapp-build.gradle sebelumnya)
           node << 'NODEEOF'
           const fs = require("fs");
           const path = require("path");
@@ -374,7 +373,7 @@ jobs:
             for (const f of fs.readdirSync(dir)) {
               const full = path.join(dir, f);
               let st;
-              try { st = fs.statSync(full); } catch { continue; }
+              try { st = fs.statSync(full); } catch (e) { continue; }
               if (st.isDirectory()) walk(full, out);
               else if (f.endsWith(".gradle")) out.push(full);
             }
@@ -382,23 +381,34 @@ jobs:
 
           const files = [];
           walk("platforms/android", files);
-          walk("plugins", files);
 
           for (const file of files) {
             let t = fs.readFileSync(file, "utf8");
             const orig = t;
 
-            // Samakan semua abiFilters ke arm64-v8a saja
-            t = t.replace(/abiFilters\s*=\s*\[[^\]]*\]/g, 'abiFilters = ["arm64-v8a"]');
-            t = t.replace(/abiFilters\s+[^\n\r{]+/g, 'abiFilters "arm64-v8a"');
-            // Bentuk: abiFilters "a", "b", "c"
-            t = t.replace(/abiFilters\s+("[^"]+"\s*,\s*)+"[^"]+"/g, 'abiFilters "arm64-v8a"');
+            // Hanya ganti assignment list: abiFilters = ["a", "b"]
+            t = t.replace(
+              /abiFilters\s*=\s*\[[^\]]*\]/g,
+              'abiFilters = ["arm64-v8a"]'
+            );
 
-            // Jika defaultConfig belum punya ndk/abiFilters, sisipkan
-            if (file.endsWith("app/build.gradle") && !/abiFilters/.test(t)) {
-              t = t.replace(/defaultConfig\s*\{/, (m) =>
-                m + '\n        ndk {\n            abiFilters "arm64-v8a"\n        }'
-              );
+            // Bentuk ndk { abiFilters "a", "b" }  (string args, BUKAN property access)
+            // Hanya jika baris mengandung abiFilters diikuti string literal
+            t = t.replace(
+              /^(\s*)abiFilters\s+"[^"]+"(?:\s*,\s*"[^"]+")*\s*$/gm,
+              '$1abiFilters "arm64-v8a"'
+            );
+
+            // app/build.gradle: pastikan ada ndk abiFilters arm64 di defaultConfig
+            if (file.replace(/\\/g, "/").endsWith("app/build.gradle")) {
+              if (!/abiFilters\s*=\s*\[\s*"arm64-v8a"\s*\]/.test(t) &&
+                  !/abiFilters\s+"arm64-v8a"/.test(t)) {
+                if (/defaultConfig\s*\{/.test(t) && !/ndk\s*\{[\s\S]*?abiFilters/.test(t)) {
+                  t = t.replace(/defaultConfig\s*\{/, function (m) {
+                    return m + '\n        ndk {\n            abiFilters "arm64-v8a"\n        }';
+                  });
+                }
+              }
             }
 
             if (t !== orig) {
@@ -406,15 +416,19 @@ jobs:
               console.log("Patched ABI filters:", file);
             }
           }
-          console.log("ABI filter patch done.");
+          console.log("ABI filter patch done (safe mode).");
           NODEEOF
 
           echo "Sample abiFilters after patch:"
-          grep -n "abiFilters" platforms/android/app/build.gradle 2>/dev/null | head -20 || true
-          grep -rn "abiFilters" platforms/android --include="*.gradle" 2>/dev/null | head -30 || true
+          grep -rn "abiFilters" platforms/android --include="*.gradle" 2>/dev/null | head -40 || true
+
+          # Pastikan hotapp-build.gradle masih valid (tidak ada sintaks rusak)
+          if [ -f platforms/android/nodejs-mobile-cordova/hotapp-build.gradle ]; then
+            echo "--- hotapp-build.gradle (relevant lines) ---"
+            grep -n "abiFilters\|defaultConfig\|ndk" platforms/android/nodejs-mobile-cordova/hotapp-build.gradle | head -30 || true
+          fi
 
           cd platforms/android
-          # JANGAN pakai -PcdvBuildMultipleApks=false di CLI (sudah di gradle.properties)
           ./gradlew assembleDebug --stacktrace --info 2>&1 | tee ../../build.log
           cd ../..
 

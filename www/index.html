@@ -12,7 +12,7 @@
   <main>
     <h1>Hc Bot App</h1>
     <p class="sub">Menjalankan bot WhatsApp langsung di HP dengan Node.js</p>
-
+    
     <section class="card">
       <h2>Status mesin Node.js</h2>
       <div id="status" class="pill wait">Menunggu perangkat...</div>
@@ -26,26 +26,26 @@
       <button id="btnInfo" class="ghost">Muat ulang info</button>
     </section>
 
-    
-  </main>
-  <script src="cordova.js"></script>
-  <script src="js/index.js"></script>
-  <!-- Kartu Pairing WhatsApp -->
-<div class="card" style="margin-top: 16px; background: #1e1e2f; padding: 16px; border-radius: 12px; color: #fff;">
-    <h3 style="margin-bottom: 12px; font-size: 16px; color: #4ade80;">Pairing WhatsApp Bot</h3>
-    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+    <!-- Kartu Pairing WhatsApp -->
+    <section class="card" style="background: #1e1e2f; border-color: #6366f1;">
+      <h2 style="color: #4ade80; margin-bottom: 12px;">Pairing WhatsApp Bot</h2>
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
         <input type="text" id="phoneNumber" placeholder="628xxxxxxxxxx" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: #2a2a3c; color: #fff; font-size: 14px;" />
         <button id="getPairBtn" style="padding: 10px 16px; background: #6366f1; border: none; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer;">Kirim</button>
-    </div>
-    <div id="pairingContainer" style="display: none; background: #2a2a3c; padding: 12px; border-radius: 8px; text-align: center; border: 1px dashed #6366f1;">
+      </div>
+      <div id="pairingContainer" style="display: none; background: #2a2a3c; padding: 12px; border-radius: 8px; text-align: center; border: 1px dashed #6366f1;">
         <p style="font-size: 12px; color: #aaa; margin-bottom: 4px;">KODE PAIRING ANDA:</p>
         <h2 id="pairingCodeDisplay" style="font-size: 24px; color: #facc15; letter-spacing: 2px; margin: 0;">----</h2>
-    </div>
-</div>
-<section class="card">
+      </div>
+    </section>
+
+    <section class="card">
       <h2>Log</h2>
       <pre id="log"></pre>
     </section>
+  </main>
 
+  <script src="cordova.js"></script>
+  <script src="js/index.js"></script>
 </body>
 </html>

@@ -162,12 +162,12 @@ jobs:
           cordova prepare android
           echo "Platform, plugin, and prepare completed successfully."
 
-      - name: Inject Node.js v18 (Digidem Release - Strict Mode)
+      - name: Inject Node.js v18 (Official v18.20.4 Release - Strict Mode)
         shell: bash
         run: |
           set -e
-          echo "Downloading Digidem Node.js v18 binaries..."
-          DIGIDEM_URL="https://github.com/digidem/nodejs-mobile/releases/download/v18.16.0-0/nodejs-mobile-v18.16.0-0-android-arm64.zip"
+          echo "Downloading Node.js v18.20.4 binaries from official nodejs-mobile..."
+          DIGIDEM_URL="https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android-arm64.zip"
           
           mkdir -p /tmp/node18
           curl -fL --retry 3 -o /tmp/node18.zip "$DIGIDEM_URL"
@@ -186,100 +186,12 @@ jobs:
             # Verifikasi hasil penggantian
             echo "Verification - Replaced libnode.so locations:"
             find platforms/android -name "libnode.so" -ls
-            echo "Successfully replaced libnode.so with Node.js v18!"
+            echo "Successfully replaced libnode.so with Node.js v18.20.4!"
           else
             echo "ERROR: libnode.so not found inside the downloaded zip!"
             exit 1
           fi
 
-      - name: Permanent Hardcode SDK Patch & JCenter / versioncompare Fix
-        shell: bash
-        run: |
-          node << 'NODESCRIPT'
-          const fs = require("fs");
-          const path = require("path");
-
-          function removeGradleBlock(content, name) {
-            const lines = content.split("\n");
-            const out = [];
-            const startRe = new RegExp("^\\s*" + name + "\\s*\\{");
-            let i = 0;
-            while (i < lines.length) {
-              if (startRe.test(lines[i])) {
-                let depth = 0;
-                do {
-                  const line = lines[i];
-                  for (let c = 0; c < line.length; c++) {
-                    if (line[c] === "{") depth++;
-                    else if (line[c] === "}") depth--;
-                  }
-                  i++;
-                } while (i < lines.length && depth > 0);
-                continue;
-              }
-              out.push(lines[i]);
-              i++;
-            }
-            return out.join("\n");
-          }
-
-          function patchFile(filePath) {
-            if (!fs.existsSync(filePath)) return false;
-            let content = fs.readFileSync(filePath, "utf8");
-            let original = content;
-
-            content = content.replace(/com\.g00fy2:versioncompare:1\.3\.4@jar/g, "io.github.g00fy2:versioncompare:1.5.0@jar");
-            content = content.replace(/import com\.g00fy2\.versioncompare\.Version/g, "import io.github.g00fy2.versioncompare.Version");
-            content = content.replace(/jcenter\(\)/g, "mavenCentral()");
-
-            content = content.replace(/^\s*classpath\s+['"]com\.jfrog\.bintray\.gradle:gradle-bintray-plugin:[^'"]+['"]\s*$/gm, "");
-            content = content.replace(/^\s*classpath\s+['"]com\.github\.dcendents:android-maven-gradle-plugin:[^'"]+['"]\s*$/gm, "");
-            content = content.replace(/^\s*apply\s+plugin:\s*['"]com\.jfrog\.bintray['"]\s*$/gm, "");
-            content = content.replace(/^\s*apply\s+plugin:\s*['"]com\.github\.dcendents\.android-maven['"]\s*$/gm, "");
-            content = removeGradleBlock(content, "bintray");
-            content = removeGradleBlock(content, "install");
-
-            content = content.replace(/compileSdkVersion\s+cdvCompileSdkVersion/g, "compileSdkVersion 29");
-            content = content.replace(/buildToolsVersion\s+cdvBuildToolsVersion/g, 'buildToolsVersion "29.0.3"');
-            content = content.replace(/targetSdkVersion\s+cdvCompileSdkVersion/g, "targetSdkVersion 29");
-            content = content.replace(/minSdkVersion\s+cdvMinSdkVersion/g, "minSdkVersion 24");
-            content = content.replace(/compileSdkVersion\s*=?\s*[\d"']+/g, "compileSdkVersion = 29");
-            content = content.replace(/targetSdkVersion\s*=?\s*[\d"']+/g, "targetSdkVersion = 29");
-            content = content.replace(/minSdkVersion\s*=?\s*[\d"']+/g, "minSdkVersion = 24");
-            content = content.replace(/buildToolsVersion\s*=?\s*["']?[\d.]+["']?/g, 'buildToolsVersion = "29.0.3"');
-
-            if (content.includes("repositories") && !content.includes("google()")) {
-              content = content.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
-            }
-
-            if (content !== original) {
-              fs.writeFileSync(filePath, content, "utf8");
-              console.log("Patched: " + filePath);
-              return true;
-            }
-            return false;
-          }
-
-          function walk(dir) {
-            if (!fs.existsSync(dir)) return;
-            const files = fs.readdirSync(dir);
-            for (const f of files) {
-              const full = path.join(dir, f);
-              try {
-                const stat = fs.statSync(full);
-                if (stat.isDirectory()) {
-                  walk(full);
-                } else if (f.endsWith(".gradle") || f.endsWith(".js") || f === "build.gradle") {
-                  patchFile(full);
-                }
-              } catch (e) {}
-            }
-          }
-
-          walk("platforms/android");
-          walk("plugins");
-          console.log("Berhasil menerapkan hardcode patch + versioncompare fix.");
-          NODESCRIPT
 
       - name: Clean Gradle Cache Safely
         run: |

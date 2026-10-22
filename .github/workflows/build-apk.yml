@@ -162,12 +162,13 @@ jobs:
           cordova prepare android
           echo "Platform, plugin, and prepare completed successfully."
 
-      - name: Inject Node.js v18 (Digidem Release - Strict Mode)
+      - name: Inject Node.js v18 (Alternative Release - Strict Mode)
         shell: bash
         run: |
           set -e
-          echo "Downloading Digidem Node.js v18 binaries..."
-          DIGIDEM_URL="https://github.com/digidem/nodejs-mobile/releases/download/v18.16.0-0/nodejs-mobile-v18.16.0-0-android-arm64.zip"
+          echo "Downloading Node.js v18 binaries for mobile..."
+          # Menggunakan URL rilis langsung yang valid untuk nodejs-mobile v18 arm64
+          DIGIDEM_URL="https://github.com/janeasystems/nodejs-mobile/releases/download/v18.16.0-0/nodejs-mobile-v18.16.0-0-android-arm64.zip"
           
           mkdir -p /tmp/node18
           curl -fL --retry 3 -o /tmp/node18.zip "$DIGIDEM_URL"
@@ -317,7 +318,7 @@ jobs:
           set -e
           mkdir -p build-artifacts
           APK_PATH="$(find platforms/android -type f -path '*/outputs/apk/*/*.apk' ! -name '*-androidTest*' -print -quit)"
-          if [ -z "$APK_PATH" -> ]; then
+          if [ -z "$APK_PATH" ]; then
             echo "ERROR: APK not found."
             find platforms/android -type f -name '*.apk' || true
             exit 1

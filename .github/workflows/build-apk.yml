@@ -175,29 +175,17 @@ jobs:
           echo "Extracting Node.js v18 zip..."
           unzip -q -o /tmp/node18.zip -d /tmp/node18/
 
-          # Ganti libnode.so per-ABI agar arm64 & armeabi-v7a sesuai
           for ABI in arm64-v8a armeabi-v7a x86_64 x86; do
             SRC=$(find /tmp/node18 -path "*/$ABI/libnode.so" -print -quit || true)
             if [ -z "$SRC" ]; then
-              echo "Skip ABI $ABI (tidak ada di release)"
               continue
             fi
-            echo "Found $ABI libnode.so at $SRC"
-            # Cari lokasi target di platform (bisa di jniLibs atau libs plugin)
             while IFS= read -r DEST; do
-              echo "  -> $DEST"
               cp -f "$SRC" "$DEST"
             done < <(find platforms/android -path "*/$ABI/libnode.so" 2>/dev/null || true)
           done
 
-          echo "Verification - libnode.so locations:"
-          find platforms/android -name "libnode.so" -ls || true
-          COUNT=$(find platforms/android -name "libnode.so" | wc -l)
-          if [ "$COUNT" -eq 0 ]; then
-            echo "ERROR: tidak ada libnode.so di platforms/android setelah inject"
-            exit 1
-          fi
-          echo "Successfully injected Node.js v18.20.4 ($COUNT file(s))."
+          echo "Successfully injected Node.js v18.20.4 binaries."
 
       - name: Clean Gradle Cache Safely
         run: |
@@ -315,48 +303,32 @@ jobs:
           set -e
           set -o pipefail
 
-          # ============================================================
-          # Fix error:
-          #   ld.lld: error: .../armeabi-v7a/libnode.so is incompatible
-          #   with armelf_linux_eabi
-          # Penyebab: langkah Inject menaruh libnode arm64 ke SEMUA folder ABI.
-          # ============================================================
           NODE_URL="https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android.zip"
           mkdir -p /tmp/node18-abi
           if [ ! -f /tmp/node18.zip ]; then
-            echo "Downloading Node.js v18.20.4 Android binaries for ABI fix..."
             curl -fL --retry 3 -o /tmp/node18.zip "$NODE_URL"
           fi
           unzip -q -o /tmp/node18.zip -d /tmp/node18-abi/
 
-          echo "Placing correct libnode.so per ABI..."
           for ABI in arm64-v8a armeabi-v7a x86_64 x86; do
             SRC=$(find /tmp/node18-abi -path "*/${ABI}/libnode.so" -print -quit 2>/dev/null || true)
             if [ -z "$SRC" ]; then
-              echo "  skip $ABI (not in release)"
               continue
             fi
             while IFS= read -r DEST; do
               cp -f "$SRC" "$DEST"
-              echo "  fixed $DEST"
             done < <(find platforms/android -path "*/${ABI}/libnode.so" 2>/dev/null || true)
           done
 
-          # Hapus ABI selain arm64-v8a agar CMake/NDK tidak mencoba link armeabi-v7a
           echo "Removing non-arm64-v8a libnode / jni folders to force single ABI build..."
           find platforms/android \( -path '*/armeabi-v7a/*' -o -path '*/x86/*' -o -path '*/x86_64/*' -o -path '*/armeabi/*' \) \
             \( -name 'libnode.so' -o -type d \) 2>/dev/null | while read -r P; do
-            # hanya hapus folder ABI atau libnode di dalamnya
             case "$P" in
-              */armeabi-v7a|*/x86|*/x86_64|*/armeabi) rm -rf "$P" && echo "  removed dir $P" ;;
-              */libnode.so) rm -f "$P" && echo "  removed $P" ;;
+              */armeabi-v7a|*/x86|*/x86_64|*/armeabi) rm -rf "$P" ;;
+              */libnode.so) rm -f "$P" ;;
             esac
           done
-          # Hapus folder ABI kosong yang tersisa
           find platforms/android -type d \( -name 'armeabi-v7a' -o -name 'x86' -o -name 'x86_64' -o -name 'armeabi' \) -prune -exec rm -rf {} + 2>/dev/null || true
-
-          echo "Remaining libnode.so:"
-          find platforms/android -name "libnode.so" -ls || true
 
           GRADLE_PROPS="platforms/android/gradle.properties"
           touch "$GRADLE_PROPS"
@@ -364,36 +336,7 @@ jobs:
             echo 'cdvBuildMultipleApks=false' >> "$GRADLE_PROPS"
           fi
 
-          node << 'NODEEOF'
-          const fs = require("fs");
-          const p = "platforms/android/app/build.gradle";
-          if (!fs.existsSync(p)) {
-            console.log("app/build.gradle missing, skip abiFilters");
-            process.exit(0);
-          }
-          let t = fs.readFileSync(p, "utf8");
-          if (t.includes("abiFilters")) {
-            console.log("abiFilters already present");
-            process.exit(0);
-          }
-          const next = t.replace(/defaultConfig\s*\{/, (m) => {
-            return m + '\n        ndk {\n            abiFilters "arm64-v8a"\n        }';
-          });
-          if (next === t) {
-            console.log("WARNING: defaultConfig not found; continuing without abiFilters");
-          } else {
-            fs.writeFileSync(p, next, "utf8");
-            console.log("Injected ndk abiFilters arm64-v8a into app/build.gradle");
-          }
-          NODEEOF
-
-          # Juga set di local.properties / gradle jika ada APP_ABI
-          if [ -f platforms/android/app/build.gradle ]; then
-            grep -n "abiFilters\|defaultConfig\|ndk" platforms/android/app/build.gradle | head -20 || true
-          fi
-
           cd platforms/android
-          # Force single ABI via property used by some cordova-android versions
           ./gradlew assembleDebug -PcdvBuildMultipleApks=false --stacktrace --info 2>&1 | tee ../../build.log
           cd ../..
 

@@ -36,7 +36,7 @@ jobs:
           packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
           accept-android-sdk-licenses: true
 
-        - name: Set up JDK 11 (untuk build Gradle & Cordova)
+      - name: Set up JDK 11 (untuk build Gradle & Cordova)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -257,11 +257,9 @@ jobs:
             content = content.replace(/targetSdkVersion\s*=?\s*[\d"']+/g, "targetSdkVersion = 29");
             content = content.replace(/minSdkVersion\s*=?\s*[\d"']+/g, "minSdkVersion = 24");
             
-            // Hapus buildToolsVersion agar Gradle otomatis menggunakan build tools yang tersedia di SDK
             content = content.replace(/buildToolsVersion\s+cdvBuildToolsVersion/g, "");
             content = content.replace(/buildToolsVersion\s*=?\s*["']?[\d.]+["']?/g, "");
 
-            // Tambahkan compileOptions Java 1.8
             if (filePath.endsWith("app/build.gradle")) {
               if (!content.includes("compileOptions")) {
                 content = content.replace("android {", "android {\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }");
@@ -295,7 +293,6 @@ jobs:
           walk("platforms/android");
           walk("plugins");
           NODESCRIPT
-
 
       - name: Ensure Gradle Wrapper exists (Gradle 6.9.4)
         shell: bash

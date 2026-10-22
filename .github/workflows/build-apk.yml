@@ -132,7 +132,8 @@ jobs:
           }
           NODESCRIPT
 
-      - name: Add Platform, Plugin & Prepare Android (Direct GitHub Source)
+
+      - name: Add Platform, Plugin & Prepare Android (Manual Local Extract)
         shell: bash
         run: |
           set -e
@@ -144,14 +145,21 @@ jobs:
           curl -fL -o /tmp/cordova-android.tgz https://registry.npmjs.org/cordova-android/-/cordova-android-9.1.0.tgz
           tar -xzf /tmp/cordova-android.tgz -C vendor/cordova-android --strip-components=1
           
-          # 2. Tambahkan platform secara lokal (nofetch)
-          cordova platform add ./vendor/cordova-android --nofetch
+          # 2. Download nodejs-mobile-cordova langsung dari GitHub sebagai zip dan ekstrak ke vendor/plugins
+          mkdir -p vendor/nodejs-mobile-cordova
+          echo "Downloading nodejs-mobile-cordova source from GitHub..."
+          curl -fL -o /tmp/plugin.zip https://github.com/janeasystems/nodejs-mobile-cordova/archive/refs/heads/master.zip
+          unzip -q /tmp/plugin.zip -d /tmp/plugin-extracted
+          # Pindahkan isi folder hasil ekstrak ke folder vendor
+          mv /tmp/plugin-extracted/*/* vendor/nodejs-mobile-cordova/
           
-          # 3. Tambahkan plugin langsung dari repository resmi Janea Systems di GitHub
-          cordova plugin add https://github.com/janeasystems/nodejs-mobile-cordova.git --save
+          # 3. Tambahkan platform & plugin secara lokal murni (tanpa fetch sama sekali)
+          cordova platform add ./vendor/cordova-android --nofetch
+          cordova plugin add ./vendor/nodejs-mobile-cordova --nofetch
           
           cordova prepare android
           echo "Platform, plugin, and prepare completed successfully."
+
 
       - name: Inject Node.js v18 (Digidem Release)
         shell: bash

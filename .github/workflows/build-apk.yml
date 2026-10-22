@@ -136,38 +136,43 @@ jobs:
         shell: bash
         run: |
           set -e
-          rm -rf node_modules package-lock.json || true
-          cordova platform add android@9.1.0 --save
+          rm -rf vendor platforms plugins node_modules package-lock.json || true
+          
+          mkdir -p vendor/cordova-android
+          echo "Downloading cordova-android 9.1.0..."
+          curl -fL -o /tmp/cordova-android.tgz https://registry.npmjs.org/cordova-android/-/cordova-android-9.1.0.tgz
+          tar -xzf /tmp/cordova-android.tgz -C vendor/cordova-android --strip-components=1
+          test -f vendor/cordova-android/package.json || { echo "ERROR: cordova-android package.json missing"; exit 1; }
+          
+          cordova platform add ./vendor/cordova-android --nofetch
           cordova plugin add nodejs-mobile-cordova --save
           cordova prepare android
           echo "Platform, plugin, and prepare completed successfully."
 
-      - name: Inject Node.js v24 (Digidem Release)
+      - name: Inject Node.js v18 (Digidem Release)
         shell: bash
         run: |
           set -e
-          echo "Downloading Digidem Node.js v24 binaries..."
-          DIGIDEM_URL="https://github.com/digidem/nodejs-mobile/releases/download/v24.18.0-0/nodejs-mobile-v24.18.0-0-android-arm64.zip"
+          echo "Downloading Digidem Node.js v18 binaries..."
+          DIGIDEM_URL="https://github.com/digidem/nodejs-mobile/releases/download/v18.16.0-0/nodejs-mobile-v18.16.0-0-android-arm64.zip"
           
-          mkdir -p /tmp/node24
-          curl -fL -o /tmp/node24.zip "$DIGIDEM_URL" || true
+          mkdir -p /tmp/node18
+          curl -fL -o /tmp/node18.zip "$DIGIDEM_URL" || true
           
-          if [ -f /tmp/node24.zip ]; then
-            unzip -q -o /tmp/node24.zip -d /tmp/node24/
+          if [ -f /tmp/node18.zip ]; then
+            unzip -q -o /tmp/node18.zip -d /tmp/node18/
             
-            # Cari file libnode.so yang baru di-unzip
-            NEW_LIB=$(find /tmp/node24 -name "libnode.so" | head -n 1)
+            NEW_LIB=$(find /tmp/node18 -name "libnode.so" | head -n 1)
             
             if [ -n "$NEW_LIB" ]; then
               echo "Found new libnode.so at $NEW_LIB"
-              # Timpa file libnode.so bawaan lama dengan versi v24
               find platforms/android -name "libnode.so" -exec cp -f "$NEW_LIB" {} \;
-              echo "Successfully replaced libnode.so with Node.js v24!"
+              echo "Successfully replaced libnode.so with Node.js v18!"
             else
               echo "Warning: libnode.so not found in zip, keeping default."
             fi
           else
-            echo "Warning: Download Digidem v24 failed, using default Node.js."
+            echo "Warning: Download Digidem v18 failed, using default Node.js."
           fi
 
       - name: Permanent Hardcode SDK Patch & JCenter / versioncompare Fix

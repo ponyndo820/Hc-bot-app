@@ -6,7 +6,7 @@ const $ = (id) => document.getElementById(id);
 function log(text) {
   const t = new Date().toLocaleTimeString('id-ID');
   $('log').textContent += `[${t}] ${text}\n`;
-  $('log').scrollTop = $('log').scrollHeight;
+  $('log').scrollTop =$('log').scrollHeight;
 }
 
 function setStatus(text, kind) {
@@ -25,12 +25,12 @@ function renderInfo(info) {
   ];
   $('info').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
 
-  // Baileys (library WhatsApp) membutuhkan Node.js 20 atau lebih baru.
+  // Baileys / bot baru mendukung Node.js 18 atau lebih baru.
   const major = parseInt(String(info.node).replace(/^v/, ''), 10);
   const warn = $('warn');
-  if (!Number.isNaN(major) && major < 20) {
+  if (!Number.isNaN(major) && major < 18) {
     warn.hidden = false;
-    warn.textContent = `Node.js di aplikasi ini versi ${info.node}. Baileys membutuhkan Node.js 20 atau lebih baru, jadi bot belum bisa dijalankan dengan mesin ini. Cek versi plugin nodejs-mobile yang dipakai.`;
+    warn.textContent = `Node.js di aplikasi ini versi ${info.node}. Bot membutuhkan Node.js 18 atau lebih baru.`;
   } else {
     warn.hidden = true;
   }
@@ -74,6 +74,5 @@ function onDeviceReady() {
     send({ cmd: 'info' });
   });
 
-  $('btnPing').addEventListener('click', () => send({ cmd: 'ping', t: Date.now() }));
-  $('btnInfo').addEventListener('click', () => send({ cmd: 'info' }));
+  $('btnPing').addEventListener('click', () => send({ cmd: 'ping', t: Date.now() }));$('btnInfo').addEventListener('click', () => send({ cmd: 'info' }));
 }

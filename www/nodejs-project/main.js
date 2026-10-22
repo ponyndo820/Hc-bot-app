@@ -1,20 +1,29 @@
+// Node.js side – M2: channel + Express pairing API + Baileys (Node 18 compatible)
 const cordova = require('cordova-bridge');
 const path = require('path');
 const os = require('os');
-const express = require('express');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
-const pino = require('pino');
 
-const app = express();
-app.use(express.json());
+let express, makeWASocket, useMultiFileAuthState, DisconnectReason, pino;
+let baileysReady = false;
+
+try {
+  express = require('express');
+  pino = require('pino');
+  const baileys = require('@whiskeysockets/baileys');
+  makeWASocket = baileys.default || baileys.makeWASocket;
+  useMultiFileAuthState = baileys.useMultiFileAuthState;
+  DisconnectReason = baileys.DisconnectReason;
+  baileysReady = true;
+} catch (e) {
+  // Will report via channel after ready
+  global.__baileysLoadError = String(e && e.stack || e);
+}
 
 const startedAt = Date.now();
 function send(obj) {
   try {
     cordova.channel.send(JSON.stringify(obj));
-  } catch (e) {
-    // channel belum siap
-  }
+  } catch (_) {}
 }
 
 function info() {
@@ -27,11 +36,18 @@ function info() {
     uptime: Math.round((Date.now() - startedAt) / 1000),
     dataDir: process.env.DATADIR || path.resolve('.'),
     hostname: os.hostname(),
+    baileys: baileysReady ? 'ok' : ('error: ' + (global.__baileysLoadError || 'not loaded')),
   };
 }
 
-// Inisialisasi Sesi Baileys & Pairing Code
 async function startBaileys(phoneNumber, res) {
+  if (!baileysReady) {
+    const msg = 'Baileys gagal dimuat: ' + (global.__baileysLoadError || 'unknown');
+    if (res && !res.headersSent) res.status(500).json({ success: false, message: msg });
+    send({ type: 'error', message: msg });
+    return;
+  }
+
   try {
     const authFolder = path.resolve(process.env.DATADIR || '.', 'auth_info_baileys');
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
@@ -43,38 +59,50 @@ async function startBaileys(phoneNumber, res) {
     });
 
     global.hcMain = sock;
-
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect } = update;
       if (connection === 'close') {
-        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        if (shouldReconnect) {
-          startBaileys();
+        const code = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
+          ? lastDisconnect.error.output.statusCode
+          : 0;
+        const shouldReconnect = code !== DisconnectReason.loggedOut;
+        send({ type: 'error', message: 'WA disconnected code=' + code + ' reconnect=' + shouldReconnect });
+        if (shouldReconnect && phoneNumber) {
+          setTimeout(() => startBaileys(phoneNumber, null), 3000);
         }
       } else if (connection === 'open') {
-        console.log('Bot WhatsApp berhasil terhubung!');
+        send({ type: 'ready', node: process.version });
+        console.log('Bot WhatsApp terhubung');
       }
     });
 
-    // Jika belum terdaftar, minta kode pairing
     if (!sock.authState.creds.registered) {
+      // wait a bit for socket to be ready before requesting code
       setTimeout(async () => {
         try {
-          const cleanNum = phoneNumber.replace(/[^0-9]/g, '');
-          const code = await sock.requestPairingCode(cleanNum);
-          const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
-          if (res && !res.headersSent) {
-            res.json({ success: true, code: formattedCode });
+          const cleanNum = String(phoneNumber || '').replace(/[^0-9]/g, '');
+          if (!cleanNum) {
+            if (res && !res.headersSent) {
+              res.status(400).json({ success: false, message: 'Nomor tidak valid' });
+            }
+            return;
           }
+          const code = await sock.requestPairingCode(cleanNum);
+          const formatted = (code && code.match(/.{1,4}/g) || []).join('-') || code;
+          if (res && !res.headersSent) {
+            res.json({ success: true, code: formatted });
+          }
+          send({ type: 'info', pairingCode: formatted, node: process.version });
         } catch (err) {
           console.error('Gagal request pairing code:', err);
           if (res && !res.headersSent) {
-            res.status(500).json({ success: false, message: err.message });
+            res.status(500).json({ success: false, message: String(err.message || err) });
           }
+          send({ type: 'error', message: 'pairing: ' + String(err.message || err) });
         }
-      }, 3000);
+      }, 2500);
     } else {
       if (res && !res.headersSent) {
         res.json({ success: false, message: 'Bot sudah terdaftar sebelumnya.' });
@@ -83,23 +111,37 @@ async function startBaileys(phoneNumber, res) {
   } catch (err) {
     console.error('Error Baileys:', err);
     if (res && !res.headersSent) {
-      res.status(500).json({ success: false, message: err.message });
+      res.status(500).json({ success: false, message: String(err.message || err) });
     }
+    send({ type: 'error', message: 'Baileys: ' + String(err.message || err) });
   }
 }
 
-// Endpoint API Pairing untuk Frontend
-app.get('/pair', async (req, res) => {
+// Express only if loaded
+if (express) {
+  const app = express();
+  app.use(express.json());
+
+  app.get('/pair', async (req, res) => {
     const phoneNumber = req.query.number;
     if (!phoneNumber) {
-        return res.status(400).json({ success: false, message: 'Nomor telepon tidak boleh kosong' });
+      return res.status(400).json({ success: false, message: 'Nomor telepon tidak boleh kosong' });
     }
     await startBaileys(phoneNumber, res);
-});
+  });
 
-app.listen(3000, () => {
-    console.log('Server Express berjalan di port 3000');
-});
+  app.get('/status', (_req, res) => {
+    res.json({ ok: true, baileys: baileysReady, node: process.version });
+  });
+
+  try {
+    app.listen(3000, '127.0.0.1', () => {
+      console.log('Express di 127.0.0.1:3000');
+    });
+  } catch (e) {
+    send({ type: 'error', message: 'Express listen: ' + e.message });
+  }
+}
 
 cordova.channel.on('message', (raw) => {
   try {
@@ -107,6 +149,10 @@ cordova.channel.on('message', (raw) => {
     if (msg.cmd === 'info') return send(info());
     if (msg.cmd === 'ping') {
       return send({ type: 'pong', ms: Date.now() - (msg.t || Date.now()) });
+    }
+    if (msg.cmd === 'pair') {
+      startBaileys(msg.number, null);
+      return send({ type: 'info', message: 'pairing started for ' + msg.number });
     }
     send({ type: 'error', message: 'Perintah tidak dikenal: ' + (msg.cmd || '?') });
   } catch (e) {
@@ -117,9 +163,11 @@ cordova.channel.on('message', (raw) => {
 process.on('uncaughtException', (e) => {
   send({ type: 'error', message: String(e && e.stack || e) });
 });
-
 process.on('unhandledRejection', (e) => {
   send({ type: 'error', message: 'UnhandledRejection: ' + String(e && e.stack || e) });
 });
 
 send({ type: 'ready', node: process.version });
+if (!baileysReady) {
+  send({ type: 'error', message: 'Baileys load failed: ' + (global.__baileysLoadError || '') });
+}

@@ -116,11 +116,25 @@ jobs:
 
       - name: Install Baileys & Express inside www/nodejs-project
         run: |
-          if [ -d "www/nodejs-project" ]; then
-            cd www/nodejs-project
-            npm install --production
-            cd ../..
+          set -e
+          if [ ! -d "www/nodejs-project" ]; then
+            echo "www/nodejs-project missing – skip"
+            exit 0
           fi
+          cd www/nodejs-project
+          echo "Node for install: $(node -v)"
+          echo "package.json:"
+          cat package.json
+          # Baileys >=6.7.18 forces Node 20 via preinstall. We pin 6.6.0 (Node 18 OK)
+          # and still ignore engines/scripts so CI never dies on engines check.
+          npm install --production --ignore-engines --legacy-peer-deps --no-audit --no-fund ||             npm install --production --ignore-scripts --legacy-peer-deps --no-audit --no-fund
+          echo "Installed packages:"
+          ls -la node_modules 2>/dev/null | head -30 || true
+          test -d node_modules/@whiskeysockets/baileys && echo "OK: baileys present" || echo "WARN: baileys missing"
+          test -d node_modules/express && echo "OK: express present" || echo "WARN: express missing"
+          # Drop optional heavy native deps that break on Android/nodejs-mobile
+          rm -rf node_modules/sharp node_modules/@img 2>/dev/null || true
+          cd ../..
 
       - name: Ensure SDK preferences in config.xml
         shell: bash

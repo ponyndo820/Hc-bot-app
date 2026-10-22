@@ -141,6 +141,20 @@ jobs:
         run: |
           set -e
           rm -rf vendor platforms plugins node_modules package-lock.json || true
+
+          # Pastikan icon yang di-refer config.xml ada
+          mkdir -p res
+          if [ ! -f res/icon.png ]; then
+            SRC=$(find res -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) | head -1 || true)
+            if [ -n "$SRC" ]; then
+              echo "Creating res/icon.png from $SRC"
+              cp -f "$SRC" res/icon.png
+            else
+              echo "WARNING: no image in res/; creating minimal placeholder PNG"
+              python3 -c "import struct,zlib; sig=b'\x89PNG\r\n\x1a\n'; ihdr=struct.pack('>IIBBBBB',1,1,8,2,0,0,0); raw=b'\x00\x00\x00\x00'; def chunk(t,d): return struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff); open('res/icon.png','wb').write(sig+chunk(b'IHDR',ihdr)+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b''))"
+            fi
+          fi
+          ls -la res/ || true
           
           # 1. Download cordova-android 9.1.0 secara langsung via curl
           mkdir -p vendor/cordova-android

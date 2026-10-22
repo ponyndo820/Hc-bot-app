@@ -36,11 +36,11 @@ jobs:
           packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
           accept-android-sdk-licenses: true
 
-      - name: Set up JDK 8 (untuk build Gradle & Cordova)
+        - name: Set up JDK 11 (untuk build Gradle & Cordova)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '8'
+          java-version: '11'
 
       - name: Install Gradle 6.9.4
         shell: bash

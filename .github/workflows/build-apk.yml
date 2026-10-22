@@ -123,14 +123,11 @@ jobs:
           fi
           cd www/nodejs-project
           echo "Node for install: $(node -v)"
+          echo "package.json:"
           cat package.json
-          # Exact pin preferred. ignore-engines / ignore-scripts bypass Node 20 preinstall.
-          npm install --production --ignore-engines --legacy-peer-deps --no-audit --no-fund \
-            || npm install --production --ignore-scripts --legacy-peer-deps --no-audit --no-fund
-          if [ -f node_modules/@whiskeysockets/baileys/package.json ]; then
-            VER=$(node -p "require('./node_modules/@whiskeysockets/baileys/package.json').version")
-            echo "Installed baileys version: $VER"
-          fi
+          npm install --production --ignore-engines --legacy-peer-deps --no-audit --no-fund ||             npm install --production --ignore-scripts --legacy-peer-deps --no-audit --no-fund
+          echo "Installed packages:"
+          ls -la node_modules 2>/dev/null | head -30 || true
           test -d node_modules/@whiskeysockets/baileys && echo "OK: baileys present" || echo "WARN: baileys missing"
           test -d node_modules/express && echo "OK: express present" || echo "WARN: express missing"
           rm -rf node_modules/sharp node_modules/@img 2>/dev/null || true
@@ -173,16 +170,16 @@ jobs:
               python3 -c "import struct,zlib; sig=b'\x89PNG\r\n\x1a\n'; ihdr=struct.pack('>IIBBBBB',1,1,8,2,0,0,0); raw=b'\x00\x00\x00\x00'; def chunk(t,d): return struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff); open('res/icon.png','wb').write(sig+chunk(b'IHDR',ihdr)+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b''))"
             fi
           fi
-
+          
           mkdir -p vendor/cordova-android
           curl -fL -o /tmp/cordova-android.tgz https://registry.npmjs.org/cordova-android/-/cordova-android-9.1.0.tgz
           tar -xzf /tmp/cordova-android.tgz -C vendor/cordova-android --strip-components=1
-
+          
           mkdir -p vendor/nodejs-mobile-cordova
           curl -fL -o /tmp/plugin.zip https://github.com/nodejs-mobile/nodejs-mobile-cordova/archive/refs/heads/master.zip
           unzip -q /tmp/plugin.zip -d /tmp/plugin-extracted
           mv /tmp/plugin-extracted/*/* vendor/nodejs-mobile-cordova/
-
+          
           cordova platform add ./vendor/cordova-android --nofetch
           cordova plugin add ./vendor/nodejs-mobile-cordova --nofetch
           cordova prepare android
@@ -214,6 +211,22 @@ jobs:
           node << 'NODESCRIPT'
           const fs = require("fs");
           const path = require("path");
+
+          // Safely patch or create platforms/android/gradle.properties
+          const propsPath = "platforms/android/gradle.properties";
+          let props = "";
+          if (fs.existsSync(propsPath)) {
+            props = fs.readFileSync(propsPath, "utf8");
+            if (!props.endsWith("\n")) props += "\n";
+          }
+          if (!props.includes("cdvBuildMultipleApks")) {
+            props += "cdvBuildMultipleApks=false\n";
+          }
+          if (process.env.JAVA_HOME && !props.includes("org.gradle.java.home")) {
+            props += `org.gradle.java.home=${process.env.JAVA_HOME}\n`;
+          }
+          fs.writeFileSync(propsPath, props, "utf8");
+
           function removeGradleBlock(content, name) {
             const lines = content.split("\n");
             const out = [];
@@ -237,6 +250,7 @@ jobs:
             }
             return out.join("\n");
           }
+
           function patchFile(filePath) {
             if (!fs.existsSync(filePath)) return false;
             let content = fs.readFileSync(filePath, "utf8");
@@ -250,23 +264,23 @@ jobs:
             content = content.replace(/^\s*apply\s+plugin:\s*['"]com\.github\.dcendents\.android-maven['"]\s*$/gm, "");
             content = removeGradleBlock(content, "bintray");
             content = removeGradleBlock(content, "install");
+            
             content = content.replace(/compileSdkVersion\s+cdvCompileSdkVersion/g, "compileSdkVersion 29");
             content = content.replace(/targetSdkVersion\s+cdvCompileSdkVersion/g, "targetSdkVersion 29");
             content = content.replace(/minSdkVersion\s+cdvMinSdkVersion/g, "minSdkVersion 24");
-            content = content.replace(/compileSdkVersion\s*=?\s*[\d"']+/g, "compileSdkVersion 29");
-            content = content.replace(/targetSdkVersion\s*=?\s*[\d"']+/g, "targetSdkVersion 29");
+            content = content.replace(/compileSdkVersion\s*=?\s*[\d"']+/g, "compileSdkVersion = 29");
+            content = content.replace(/targetSdkVersion\s*=?\s*[\d"']+/g, "targetSdkVersion = 29");
             content = content.replace(/minSdkVersion\s*=?\s*[\d"']+/g, "minSdkVersion 24");
+            
             content = content.replace(/buildToolsVersion\s+cdvBuildToolsVersion/g, "");
             content = content.replace(/buildToolsVersion\s*=?\s*["']?[\d.]+["']?/g, "");
+
             if (filePath.endsWith("app/build.gradle")) {
               if (!content.includes("compileOptions")) {
                 content = content.replace("android {", "android {\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }");
               }
-              // Ensure compileSdkVersion exists even if Cordova left a variable
-              if (!/compileSdkVersion\s+\d+/.test(content)) {
-                content = content.replace(/android\s*\{/, "android {\n    compileSdkVersion 29\n    defaultConfig {\n        minSdkVersion 24\n        targetSdkVersion 29\n    }");
-              }
             }
+
             if (content.includes("repositories") && !content.includes("google()")) {
               content = content.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
             }
@@ -276,6 +290,7 @@ jobs:
             }
             return false;
           }
+
           function walk(dir) {
             if (!fs.existsSync(dir)) return;
             const files = fs.readdirSync(dir);
@@ -326,15 +341,9 @@ jobs:
             done < <(find platforms/android -path "*/${ABI}/libnode.so" 2>/dev/null || true)
           done
           
-          GRADLE_PROPS="platforms/android/gradle.properties"
-          touch "$GRADLE_PROPS"
-          echo 'cdvBuildMultipleApks=false' >> "$GRADLE_PROPS"
-          echo "org.gradle.java.home=$JAVA_HOME" >> "$GRADLE_PROPS"
-          
           cd platforms/android
           ./gradlew assembleDebug --stacktrace 2>&1 | tee ../../build.log
           cd ../..
-
 
       - name: Find and collect APK
         if: success()
@@ -343,22 +352,7 @@ jobs:
           set -e
           mkdir -p build-artifacts
           APK_PATH="$(find platforms/android -type f -path '*/outputs/apk/*/*.apk' ! -name '*-androidTest*' -print -quit)"
-          if [ -z "$APK_PATH" ]; then
-            echo "ERROR: APK not found"
-            find platforms/android -name '*.apk' || true
-            exit 1
-          fi
           cp "$APK_PATH" build-artifacts/hc-bot-app-debug.apk
-          ls -lh build-artifacts/hc-bot-app-debug.apk
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: hc-bot-app-build-log
-          path: build.log
-          if-no-files-found: ignore
-          retention-days: 7
 
       - name: Upload debug APK
         if: success()

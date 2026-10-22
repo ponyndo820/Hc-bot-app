@@ -142,6 +142,34 @@ jobs:
           cordova prepare android
           echo "Platform, plugin, and prepare completed successfully."
 
+      - name: Inject Node.js v24 (Digidem Release)
+        shell: bash
+        run: |
+          set -e
+          echo "Downloading Digidem Node.js v24 binaries..."
+          DIGIDEM_URL="https://github.com/digidem/nodejs-mobile/releases/download/v24.18.0-0/nodejs-mobile-v24.18.0-0-android-arm64.zip"
+          
+          mkdir -p /tmp/node24
+          curl -fL -o /tmp/node24.zip "$DIGIDEM_URL" || true
+          
+          if [ -f /tmp/node24.zip ]; then
+            unzip -q -o /tmp/node24.zip -d /tmp/node24/
+            
+            # Cari file libnode.so yang baru di-unzip
+            NEW_LIB=$(find /tmp/node24 -name "libnode.so" | head -n 1)
+            
+            if [ -n "$NEW_LIB" ]; then
+              echo "Found new libnode.so at $NEW_LIB"
+              # Timpa file libnode.so bawaan lama dengan versi v24
+              find platforms/android -name "libnode.so" -exec cp -f "$NEW_LIB" {} \;
+              echo "Successfully replaced libnode.so with Node.js v24!"
+            else
+              echo "Warning: libnode.so not found in zip, keeping default."
+            fi
+          else
+            echo "Warning: Download Digidem v24 failed, using default Node.js."
+          fi
+
       - name: Permanent Hardcode SDK Patch & JCenter / versioncompare Fix
         shell: bash
         run: |

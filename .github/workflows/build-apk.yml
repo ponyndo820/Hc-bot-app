@@ -312,8 +312,6 @@ jobs:
         run: |
           set -e
           set -o pipefail
-
-          # 1) Self-heal libnode.so (arm64 only)
           NODE_URL="https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android.zip"
           mkdir -p /tmp/node18-abi
           if [ ! -f /tmp/node18.zip ]; then
@@ -322,73 +320,21 @@ jobs:
           unzip -q -o /tmp/node18.zip -d /tmp/node18-abi/
           for ABI in arm64-v8a armeabi-v7a x86_64 x86; do
             SRC=$(find /tmp/node18-abi -path "*/${ABI}/libnode.so" -print -quit 2>/dev/null || true)
-            [ -z "$SRC" ] && continue
+            if [ -z "$SRC" ]; then continue; fi
             while IFS= read -r DEST; do
               cp -f "$SRC" "$DEST"
             done < <(find platforms/android -path "*/${ABI}/libnode.so" 2>/dev/null || true)
           done
-          find platforms/android -name 'libnode.so' ! -path '*/arm64-v8a/*' -print -delete 2>/dev/null || true
-          rm -rf platforms/android/app/libs/cdvnodejsmobile/libnode/bin/armeabi-v7a \
-                 platforms/android/app/libs/cdvnodejsmobile/libnode/bin/x86 \
-                 platforms/android/app/libs/cdvnodejsmobile/libnode/bin/x86_64 2>/dev/null || true
-
-          # 2) REWRITE gradle.properties completely (never append → no "29cdvBuildMultipleApks")
+          
           GRADLE_PROPS="platforms/android/gradle.properties"
-          # Keep any org.gradle.* lines from existing file if present
-          EXTRA=""
-          if [ -f "$GRADLE_PROPS" ]; then
-            EXTRA=$(grep -E '^(org\.gradle|systemProp)' "$GRADLE_PROPS" 2>/dev/null || true)
-          fi
-          cat > "$GRADLE_PROPS" << 'PROPS'
-          # Generated clean by CI – do not append to previous content
-          org.gradle.jvmargs=-Xmx2048m
-          android.useAndroidX=true
-          android.enableJetifier=true
-          cdvBuildMultipleApks=false
-          cdvMinSdkVersion=24
-          cdvTargetSdkVersion=29
-          cdvCompileSdkVersion=29
-          PROPS
-          # Strip leading spaces from heredoc indentation
-          sed -i 's/^          //' "$GRADLE_PROPS"
-          if [ -n "$EXTRA" ]; then
-            echo "$EXTRA" >> "$GRADLE_PROPS"
-          fi
-          echo "===== gradle.properties (cat -A) ====="
-          cat -A "$GRADLE_PROPS"
-          echo "======================================"
-
-          # 3) Force compileSdkVersion / target / min in every build.gradle
-          find platforms/android -name "*.gradle" -print0 | while IFS= read -r -d "" f; do
-            # Fix variable references
-            sed -i \
-              -e 's/compileSdkVersion[[:space:]]*cdvCompileSdkVersion/compileSdkVersion 29/g' \
-              -e 's/targetSdkVersion[[:space:]]*cdvTargetSdkVersion/targetSdkVersion 29/g' \
-              -e 's/targetSdkVersion[[:space:]]*cdvCompileSdkVersion/targetSdkVersion 29/g' \
-              -e 's/minSdkVersion[[:space:]]*cdvMinSdkVersion/minSdkVersion 24/g' \
-              "$f" 2>/dev/null || true
-            # Numeric forms (with or without =)
-            sed -i -E \
-              -e 's/compileSdkVersion[[:space:]]*=?[[:space:]]*[0-9]+/compileSdkVersion 29/g' \
-              -e 's/targetSdkVersion[[:space:]]*=?[[:space:]]*[0-9]+/targetSdkVersion 29/g' \
-              -e 's/minSdkVersion[[:space:]]*=?[[:space:]]*[0-9]+/minSdkVersion 24/g' \
-              "$f" 2>/dev/null || true
-          done
-
-          # Ensure app/build.gradle has compileSdkVersion if still missing
-          APP_BG="platforms/android/app/build.gradle"
-          if [ -f "$APP_BG" ] && ! grep -qE 'compileSdkVersion[[:space:]]+[0-9]+' "$APP_BG"; then
-            sed -i 's/android[[:space:]]*{/android {\n    compileSdkVersion 29\n    defaultConfig { minSdkVersion 24; targetSdkVersion 29 }/' "$APP_BG"
-          fi
-
-          echo "===== compileSdk lines ====="
-          grep -rn "compileSdkVersion\|cdvCompileSdkVersion\|cdvBuildMultipleApks" platforms/android --include="*.gradle" --include="*.properties" | head -40 || true
-          echo "============================"
-
-          # 4) Build
+          touch "$GRADLE_PROPS"
+          echo 'cdvBuildMultipleApks=false' >> "$GRADLE_PROPS"
+          echo "org.gradle.java.home=$JAVA_HOME" >> "$GRADLE_PROPS"
+          
           cd platforms/android
-          ./gradlew assembleDebug --stacktrace --info 2>&1 | tee ../../build.log
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee ../../build.log
           cd ../..
+
 
       - name: Find and collect APK
         if: success()

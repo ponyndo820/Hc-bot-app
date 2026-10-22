@@ -1,7 +1,11 @@
 // Node.js side – M2: channel + Express pairing API + Baileys (Node 18 compatible)
-const cordova = require('cordova-bridge');
-const path = require('path');
+
 const os = require('os');
+const path = require('path');
+const cordova = require('cordova-bridge');
+const { Crypto } = require('@peculiar/webcrypto');
+globalThis.crypto = new Crypto();
+
 
 let express, makeWASocket, useMultiFileAuthState, DisconnectReason, pino;
 let baileysReady = false;

@@ -258,6 +258,14 @@ jobs:
             content = content.replace(/targetSdkVersion\s*=?\s*[\d"']+/g, "targetSdkVersion = 29");
             content = content.replace(/minSdkVersion\s*=?\s*[\d"']+/g, "minSdkVersion = 24");
             content = content.replace(/buildToolsVersion\s*=?\s*["']?[\d.]+["']?/g, 'buildToolsVersion = "29.0.3"');
+            
+            // Tambahkan compileOptions Java 1.8 untuk mengatasi error compileDebugJavaWithJavac
+            if (filePath.endsWith("app/build.gradle")) {
+              if (!content.includes("compileOptions")) {
+                content = content.replace("android {", "android {\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }");
+              }
+            }
+
             if (content.includes("repositories") && !content.includes("google()")) {
               content = content.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
             }
@@ -285,6 +293,7 @@ jobs:
           walk("platforms/android");
           walk("plugins");
           NODESCRIPT
+
 
       - name: Ensure Gradle Wrapper exists (Gradle 6.9.4)
         shell: bash

@@ -16,6 +16,10 @@
     <platform name="android">
         <!-- nodejs-mobile (Node.js 24) membutuhkan Android 7.0 (API 24) atau lebih baru -->
         <preference name="android-minSdkVersion" value="24" />
+        <preference name="AndroidInsecureFileModeEnabled" value="true" />
+        <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application">
+            <application android:usesCleartextTraffic="true" xmlns:android="http://schemas.android.com/apk/res/android" />
+        </edit-config>
         <icon src="./res/icon.png" density="ldpi"/>
         <icon src="./res/icon.png" density="mdpi"/>
         <icon src="./res/icon.png" density="hdpi"/>

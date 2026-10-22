@@ -1,21 +1,26 @@
-// Sisi Cordova (tampilan). Berkomunikasi dengan Node.js lewat nodejs.channel.
+// Cordova side. Talks to Node.js via nodejs.channel.
 document.addEventListener('deviceready', onDeviceReady, false);
 
 const $ = (id) => document.getElementById(id);
 
 function log(text) {
+  const el = $('log');
+  if (!el) return;
   const t = new Date().toLocaleTimeString('id-ID');
-  $('log').textContent += `[${t}] ${text}\n`;
-  $('log').scrollTop = $('log').scrollHeight;
+  el.textContent += `[${t}] ${text}\n`;
+  el.scrollTop = el.scrollHeight;
 }
 
 function setStatus(text, kind) {
   const el = $('status');
+  if (!el) return;
   el.textContent = text;
   el.className = 'pill ' + (kind || 'wait');
 }
 
 function renderInfo(info) {
+  const el = $('info');
+  if (!el) return;
   const rows = [
     ['Versi Node.js', info.node],
     ['Versi nodejs-mobile', info.mobile || '-'],
@@ -23,14 +28,15 @@ function renderInfo(info) {
     ['Aktif sejak', `${info.uptime} detik`],
     ['Folder data', info.dataDir || '-'],
   ];
-  $('info').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  el.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
 
-  // Baileys / bot baru mendukung Node.js 18 atau lebih baru.
-  const major = parseInt(String(info.node).replace(/^v/, ''), 10);
+  const major = parseInt(String(info.node || '').replace(/^v/, ''), 10);
   const warn = $('warn');
+  if (!warn) return;
   if (!Number.isNaN(major) && major < 18) {
     warn.hidden = false;
-    warn.textContent = `Node.js di aplikasi ini versi ${info.node}. Bot membutuhkan Node.js 18 atau lebih baru.`;
+    warn.textContent =
+      `Node.js di aplikasi ini versi ${info.node}. Bot membutuhkan Node.js 18 atau lebih baru.`;
   } else {
     warn.hidden = true;
   }
@@ -38,14 +44,22 @@ function renderInfo(info) {
 
 function onNodeMessage(raw) {
   let msg;
-  try { msg = JSON.parse(raw); } catch { log('Node: ' + raw); return; }
+  try {
+    msg = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch {
+    log('Node: ' + String(raw));
+    return;
+  }
   switch (msg.type) {
     case 'ready':
       setStatus('Mesin Node.js berjalan', 'ok');
       log('Node.js siap: ' + msg.node);
+      // auto-request info after ready
+      send({ cmd: 'info' });
       break;
     case 'info':
       renderInfo(msg);
+      log('Info mesin dimuat.');
       break;
     case 'pong':
       log(`Pong dari Node.js (${msg.ms} ms sejak dikirim)`);
@@ -55,15 +69,36 @@ function onNodeMessage(raw) {
       log('ERROR: ' + msg.message);
       break;
     default:
-      log('Node: ' + raw);
+      log('Node: ' + JSON.stringify(msg));
   }
 }
 
-const send = (obj) => nodejs.channel.send(JSON.stringify(obj));
+function send(obj) {
+  try {
+    if (typeof nodejs !== 'undefined' && nodejs.channel) {
+      nodejs.channel.send(JSON.stringify(obj));
+    }
+  } catch (e) {
+    log('Gagal kirim ke Node: ' + e);
+  }
+}
 
 function onDeviceReady() {
   setStatus('Memulai mesin Node.js...', 'wait');
-  nodejs.channel.setListener(onNodeMessage);
+  log('deviceready');
+
+  if (typeof nodejs === 'undefined') {
+    setStatus('Plugin nodejs-mobile tidak ada', 'bad');
+    log('ERROR: objek nodejs tidak ditemukan. Plugin mungkin gagal di-link.');
+    return;
+  }
+
+  try {
+    nodejs.channel.setListener(onNodeMessage);
+  } catch (e) {
+    log('setListener error: ' + e);
+  }
+
   nodejs.start('main.js', (err) => {
     if (err) {
       setStatus('Gagal memulai Node.js', 'bad');
@@ -71,44 +106,29 @@ function onDeviceReady() {
       return;
     }
     log('Perintah start terkirim.');
-    send({ cmd: 'info' });
+    // info will also be requested when 'ready' arrives
+    setTimeout(() => send({ cmd: 'info' }), 800);
   });
 
-  $('btnPing').addEventListener('click', () => send({ cmd: 'ping', t: Date.now() }));
-  $('btnInfo').addEventListener('click', () => send({ cmd: 'info' }));
+  const btnPing = $('btnPing');
+  const btnInfo = $('btnInfo');
+  if (btnPing) btnPing.addEventListener('click', () => send({ cmd: 'ping', t: Date.now() }));
+  if (btnInfo) btnInfo.addEventListener('click', () => send({ cmd: 'info' }));
+
+  // Pairing UI (M2) – show notice that Baileys not wired yet
+  const getPairBtn = $('getPairBtn');
+  if (getPairBtn) {
+    getPairBtn.addEventListener('click', () => {
+      const phone = ($('phoneNumber') || {}).value || '';
+      if (!phone || phone.trim().length < 10) {
+        alert('Masukkan nomor WhatsApp yang valid (contoh: 62858xxxxxxxx)');
+        return;
+      }
+      alert(
+        'Fitur pairing (Baileys) belum diaktifkan di tahap M1.\n' +
+          'Sekarang aplikasi hanya memastikan Node.js berjalan.\n' +
+          'Setelah status Node.js hijau, lanjut ke M2.'
+      );
+    });
+  }
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-    const getPairBtn = document.getElementById('getPairBtn');
-    if (getPairBtn) {
-        getPairBtn.addEventListener('click', async () => {
-            const phone = document.getElementById('phoneNumber').value.trim();
-            const container = document.getElementById('pairingContainer');
-            const display = document.getElementById('pairingCodeDisplay');
-
-            if (!phone || phone.length < 10) {
-                alert('Masukkan nomor WhatsApp yang valid (contoh: 62858xxxxxxxx)');
-                return;
-            }
-
-            display.innerText = 'Memuat...';
-            container.style.display = 'block';
-
-            try {
-                const response = await fetch(`http://localhost:3000/pair?number=${phone}`);
-                const data = await response.json();
-
-                if (data.success) {
-                    display.innerText = data.code;
-                } else {
-                    display.innerText = 'Gagal!';
-                    alert(data.message || 'Terjadi kesalahan saat mengambil kode pairing.');
-                }
-            } catch (err) {
-                console.error(err);
-                display.innerText = 'Error!';
-                alert('Gagal terhubung ke server Node.js di dalam aplikasi.');
-            }
-        });
-    }
-});

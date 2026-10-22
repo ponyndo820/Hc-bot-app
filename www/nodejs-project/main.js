@@ -191,7 +191,7 @@ process.on('unhandledRejection', (e) => {
   send({ type: 'error', message: 'UnhandledRejection: ' + String(e && e.stack || e) });
 });
 
+// Node.js runtime sudah berjalan. Jangan mengirim error Baileys di sini:
+// initBaileysModule() berjalan asynchronous, jadi baileysReady masih false
+// pada saat baris ini dieksekusi. Error sebenarnya dikirim dari catch initBaileysModule().
 send({ type: 'ready', node: process.version });
-if (!baileysReady) {
-  send({ type: 'error', message: 'Baileys load failed: ' + (global.__baileysLoadError || '') });
-}

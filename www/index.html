@@ -60,7 +60,7 @@
       </dl>
     </section>
 
-    <section class="card" id="logCard" data-view="home">
+    <section class="card" id="logCard" data-view="home log">
       <h2>Log</h2>
       <pre id="log"></pre>
     </section>
@@ -86,18 +86,15 @@
       if (b) b.setAttribute('aria-expanded', 'false');
     }
     function showPage(name) {
-      var page = name === 'log' ? 'home' : name;
+      var page = name;
       Array.prototype.forEach.call(document.querySelectorAll('[data-view]'), function (el) {
-        el.hidden = el.getAttribute('data-view') !== page;
+        el.hidden = el.getAttribute('data-view').split(' ').indexOf(page) === -1;
       });
       Array.prototype.forEach.call(document.querySelectorAll('#menuList button'), function (b) {
         b.classList.toggle('active', b.getAttribute('data-page') === name);
       });
       closeMenu();
-      if (name === 'log') {
-        var c = $('logCard');
-        if (c) setTimeout(function () { c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
-      } else { window.scrollTo(0, 0); }
+      window.scrollTo(0, 0);
     }
     document.addEventListener('click', function (e) {
       var t = e.target;

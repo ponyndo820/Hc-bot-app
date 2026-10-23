@@ -116,6 +116,7 @@ function onDeviceReady() {
     if (err) {
       // Mesin sudah berjalan di latar belakang (foreground service): cukup sambung ulang ke channel
       if (String(err).indexOf('already started') !== -1) {
+        setStatus('Mesin Node.js berjalan', 'ok');
         log('Mesin Node.js sudah berjalan di latar belakang, tersambung kembali.');
         send({ cmd: 'info' });
         setTimeout(() => send({ cmd: 'info' }), 800);

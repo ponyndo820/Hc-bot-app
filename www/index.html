@@ -9,40 +9,68 @@
   <link rel="stylesheet" href="css/index.css">
 </head>
 <body>
+  <header class="topbar">
+    <div class="bar">
+      <h1>Hc Bot App</h1>
+      <button id="menuBtn" class="menu-btn" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    </div>
+    <p class="sub">Menjalankan bot WhatsApp langsung di HP dengan Node.js 18</p>
+    <nav id="menuList" class="menu-list" hidden>
+      <button data-page="home">Home</button>
+      <button data-page="rentang">Rentang</button>
+      <button data-page="log">Log</button>
+      <button data-page="kontak">Kontak</button>
+    </nav>
+  </header>
+
   <main>
-    <h1>Hc Bot App</h1>
-    <p class="sub">Menjalankan bot WhatsApp langsung di HP dengan Node.js</p>
     
-    <section class="card">
+    <section class="card" data-view="home">
       <h2>Status mesin Node.js</h2>
       <div id="status" class="pill wait">Menunggu perangkat...</div>
       <dl id="info"></dl>
       <div id="warn" class="warn" hidden></div>
     </section>
     
-    <section class="card">
+    <section class="card" data-view="home">
       <h2>Uji komunikasi</h2>
       <button id="btnPing">Ping ke Node.js</button>
       <button id="btnInfo" class="ghost">Muat ulang info</button>
     </section>
     
-    <section class="card">
+    <section class="card" data-view="home">
       <h2>Pairing WhatsApp Bot</h2>
-      <p class="sub" style="margin-bottom:10px">Silahkan Masuk kan nomor wa nya di sini ya sayang</p>
-      <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <input type="text" id="phoneNumber" placeholder="628xxxxxxxxxx"
-               style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--line);background:#2a2a3c;color:#fff;font-size:14px;" />
+      <p class="sub tight">Silahkan Masuk kan nomor wa nya di sini ya sayang</p>
+      <div class="pair-row">
+        <input type="text" id="phoneNumber" placeholder="628xxxxxxxxxx" />
         <button id="getPairBtn">Kirim</button>
       </div>
-      <div id="pairingContainer" style="display:none;background:#2a2a3c;padding:12px;border-radius:8px;text-align:center;border:1px dashed #6366f1;">
-        <p style="font-size:12px;color:#aaa;margin-bottom:4px;">KODE PAIRING ANDA:</p>
-        <h2 id="pairingCodeDisplay" style="font-size:24px;color:#facc15;letter-spacing:2px;margin:0;">----</h2>
+      <div id="pairingContainer" class="pair-box" style="display:none;">
+        <p class="pair-label">KODE PAIRING ANDA:</p>
+        <h2 id="pairingCodeDisplay" class="pair-code">----</h2>
       </div>
     </section>
     
-    <section class="card">
+    <section class="card" data-view="rentang" hidden>
+      <h2>Rentang waktu aktif</h2>
+      <p class="sub tight">Mesin Node.js sudah berjalan selama</p>
+      <div id="uptimeBig" class="uptime-big">-</div>
+      <dl>
+        <dt>Mulai sejak</dt><dd id="startedAt">-</dd>
+      </dl>
+    </section>
+
+    <section class="card" data-view="log" hidden>
       <h2>Log</h2>
       <pre id="log"></pre>
+    </section>
+
+    <section class="card" data-view="kontak" hidden>
+      <h2>Kontak</h2>
+      <a class="link-row" href="https://wa.me/6285828708258" target="_blank" rel="noopener">WhatsApp Owner</a>
+      <a class="link-row" href="https://chat.whatsapp.com/E50d9VEtLnc3acHPFeRdqY?mode=gi_t" target="_blank" rel="noopener">Grup WhatsApp</a>
+      <a class="link-row" href="https://youtube.com/@ponyndo?si=k9PQEkINzEREkE6p" target="_blank" rel="noopener">YouTube</a>
+      <a class="link-row" href="https://github.com/ponyndo820/Hc-bot" target="_blank" rel="noopener">GitHub</a>
     </section>
   </main>
 

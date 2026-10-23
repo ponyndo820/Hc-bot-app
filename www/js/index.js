@@ -19,6 +19,7 @@ function setStatus(text, kind) {
 }
 
 function renderInfo(info) {
+  if (typeof info.uptime === 'number') window.__startedAt = Date.now() - info.uptime * 1000;
   const el = $('info');
   if (!el) return;
   const rows = [

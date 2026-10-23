@@ -60,7 +60,7 @@
       </dl>
     </section>
 
-    <section class="card" data-view="log" hidden>
+    <section class="card" id="logCard" data-view="home">
       <h2>Log</h2>
       <pre id="log"></pre>
     </section>
@@ -76,5 +76,67 @@
 
   <script src="cordova.js"></script>
   <script src="js/index.js"></script>
+  <script>
+  /* Menu garis: ditangani di sini (event capture) supaya selalu bisa diklik */
+  (function () {
+    var $ = function (id) { return document.getElementById(id); };
+    function closeMenu() {
+      var l = $('menuList'), b = $('menuBtn');
+      if (l) l.hidden = true;
+      if (b) b.setAttribute('aria-expanded', 'false');
+    }
+    function showPage(name) {
+      var page = name === 'log' ? 'home' : name;
+      Array.prototype.forEach.call(document.querySelectorAll('[data-view]'), function (el) {
+        el.hidden = el.getAttribute('data-view') !== page;
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('#menuList button'), function (b) {
+        b.classList.toggle('active', b.getAttribute('data-page') === name);
+      });
+      closeMenu();
+      if (name === 'log') {
+        var c = $('logCard');
+        if (c) setTimeout(function () { c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
+      } else { window.scrollTo(0, 0); }
+    }
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      var btn = t.closest && t.closest('#menuBtn');
+      if (btn) {
+        e.stopPropagation(); e.preventDefault();
+        var l = $('menuList'); l.hidden = !l.hidden;
+        btn.setAttribute('aria-expanded', String(!l.hidden));
+        return;
+      }
+      var item = t.closest && t.closest('#menuList button');
+      if (item) { e.stopPropagation(); e.preventDefault(); showPage(item.getAttribute('data-page')); return; }
+      closeMenu();
+    }, true);
+
+    // Halaman Rentang: hitung dari baris "Aktif sejak" di panel info
+    function readUptime() {
+      var dts = document.querySelectorAll('#info dt');
+      for (var i = 0; i < dts.length; i++) {
+        if (dts[i].textContent.indexOf('Aktif sejak') === 0 && dts[i].nextElementSibling) {
+          var s = parseInt(dts[i].nextElementSibling.textContent, 10);
+          if (!isNaN(s)) window.__startedAt = Date.now() - s * 1000;
+        }
+      }
+    }
+    var info = $('info');
+    if (info && window.MutationObserver) new MutationObserver(readUptime).observe(info, { childList: true, subtree: true });
+    setInterval(function () {
+      var big = $('uptimeBig'), st = $('startedAt');
+      if (!big || !window.__startedAt) return;
+      var s = Math.max(0, Math.floor((Date.now() - window.__startedAt) / 1000));
+      var d = Math.floor(s / 86400); s %= 86400;
+      var h = Math.floor(s / 3600); s %= 3600;
+      var m = Math.floor(s / 60); s %= 60;
+      big.textContent = (d ? d + 'h ' : '') + h + 'j ' + m + 'm ' + s + 'd';
+      if (st) st.textContent = new Date(window.__startedAt).toLocaleString('id-ID');
+    }, 1000);
+    showPage('home');
+  })();
+  </script>
 </body>
 </html>

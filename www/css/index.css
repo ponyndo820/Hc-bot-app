@@ -4,7 +4,7 @@
   --pink: #ff4da5;        /* judul, ikon, tombol */
   --pink-soft: #ffc0cb;   /* header */
   --pink-pale: #ffe3f1;
-  --bg-top: #fe8fc4 ;
+  --bg-top: #fe8fc4;
   --bg-bottom: #fbc0dc;
   --card: #ffffff;
   --fg: #333333;
@@ -75,3 +75,4 @@ pre { margin: 0; max-height: 60vh; overflow: auto; white-space: pre-wrap; word-b
 .uptime-big { font-size: 28px; font-weight: 700; color: var(--pink); margin-bottom: 12px; }
 .link-row { display: block; padding: 12px 16px; margin-bottom: 8px; border-radius: 999px; background: var(--pink-pale);
   color: var(--pink); font-weight: 600; text-decoration: none; }
+#logCard { scroll-margin-top: 96px; }

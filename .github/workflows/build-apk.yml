@@ -14,34 +14,34 @@ jobs:
     name: Build Hc Bot App
     runs-on: ubuntu-latest
     timeout-minutes: 60
-
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+        
       - name: Set up Node.js 18
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-
+          
       - name: Set up JDK 17 (untuk sdkmanager)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
+          
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-29 build-tools;29.0.3'
           accept-android-sdk-licenses: true
-
+          
       - name: Set up JDK 11 (untuk build Gradle & Cordova)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '11'
-
+          
       - name: Install Gradle 6.9.4
         shell: bash
         run: |
@@ -71,21 +71,21 @@ jobs:
           echo "/opt/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
           rm -f /tmp/gradle.zip
           echo "Gradle ${GRADLE_VERSION} installed successfully"
-
+          
       - name: Verify Gradle and Java
         run: |
           which gradle
           gradle --version
           java -version
           echo "JAVA_HOME=$JAVA_HOME"
-
+          
       - name: Install Cordova and Downgrade NPM to v6 (Fix Parser Bug)
         run: |
           npm install -g npm@6
           npm install -g cordova@9.0.0
           npm --version
           cordova --version
-
+          
       - name: Check build environment
         run: |
           node --version
@@ -95,7 +95,7 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME"
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-
+          
       - name: Validate project files
         shell: bash
         run: |
@@ -105,7 +105,7 @@ jobs:
           test -f www/index.html || { echo "ERROR: Missing www/index.html"; exit 1; }
           test -f www/nodejs-project/main.js || { echo "ERROR: Missing www/nodejs-project/main.js"; exit 1; }
           echo "Project structure looks valid."
-
+          
       - name: Install project dependencies
         run: |
           if [ -f package-lock.json ]; then
@@ -113,7 +113,7 @@ jobs:
           else
             npm install --ignore-scripts
           fi
-
+          
       - name: Install Baileys & Express inside www/nodejs-project
         run: |
           set -e
@@ -131,8 +131,12 @@ jobs:
           test -d node_modules/@whiskeysockets/baileys && echo "OK: baileys present" || echo "WARN: baileys missing"
           test -d node_modules/express && echo "OK: express present" || echo "WARN: express missing"
           rm -rf node_modules/sharp node_modules/@img 2>/dev/null || true
+          # Perkecil ukuran: buang file yang tidak dipakai saat runtime
+          find node_modules -type f \( -name '*.md' -o -name '*.map' -o -name '*.d.ts' -o -name '*.ts' -o -name '*.markdown' -o -name 'LICENSE*' -o -name 'CHANGELOG*' \) -delete 2>/dev/null || true
+          find node_modules -type d \( -name test -o -name tests -o -name __tests__ -o -name docs -o -name example -o -name examples -o -name .github \) -prune -exec rm -rf {} + 2>/dev/null || true
+          du -sh node_modules || true
           cd ../..
-
+          
       - name: Ensure SDK preferences in config.xml
         shell: bash
         run: |
@@ -154,7 +158,7 @@ jobs:
             console.log("SDK preferences already present");
           }
           NODESCRIPT
-
+          
       - name: Add Platform, Plugin & Prepare Android (Manual Local Extract)
         shell: bash
         run: |
@@ -184,7 +188,7 @@ jobs:
           cordova plugin add ./vendor/nodejs-mobile-cordova --nofetch
           cordova plugin add cordova-plugin-foreground-service@1.1.3
           cordova prepare android
-
+          
       - name: Inject Node.js v18.20.4 (Official Release - multi-arch)
         shell: bash
         run: |
@@ -200,19 +204,19 @@ jobs:
               cp -f "$SRC" "$DEST"
             done < <(find platforms/android -path "*/$ABI/libnode.so" 2>/dev/null || true)
           done
-
+          
       - name: Clean Gradle Cache Safely
         run: |
           rm -rf ~/.gradle/caches/ || true
           rm -rf platforms/android/.gradle/ || true
-
+          
       - name: Permanent Hardcode SDK Patch & JCenter / versioncompare Fix
         shell: bash
         run: |
           node << 'NODESCRIPT'
           const fs = require("fs");
           const path = require("path");
-
+          
           // Safely patch or create platforms/android/gradle.properties
           const propsPath = "platforms/android/gradle.properties";
           let props = "";
@@ -227,7 +231,7 @@ jobs:
             props += `org.gradle.java.home=${process.env.JAVA_HOME}\n`;
           }
           fs.writeFileSync(propsPath, props, "utf8");
-
+          
           function removeGradleBlock(content, name) {
             const lines = content.split("\n");
             const out = [];
@@ -251,7 +255,7 @@ jobs:
             }
             return out.join("\n");
           }
-
+          
           function patchFile(filePath) {
             if (!fs.existsSync(filePath)) return false;
             let content = fs.readFileSync(filePath, "utf8");
@@ -275,13 +279,13 @@ jobs:
             
             content = content.replace(/buildToolsVersion\s+cdvBuildToolsVersion/g, "");
             content = content.replace(/buildToolsVersion\s*=?\s*["']?[\d.]+["']?/g, "");
-
+            
             if (filePath.endsWith("app/build.gradle")) {
               if (!content.includes("compileOptions")) {
                 content = content.replace("android {", "android {\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8\n    }");
               }
             }
-
+            
             if (content.includes("repositories") && !content.includes("google()")) {
               content = content.replace(/repositories\s*\{/g, "repositories {\n        google()\n        mavenCentral()");
             }
@@ -291,7 +295,7 @@ jobs:
             }
             return false;
           }
-
+          
           function walk(dir) {
             if (!fs.existsSync(dir)) return;
             const files = fs.readdirSync(dir);
@@ -310,7 +314,7 @@ jobs:
           walk("platforms/android");
           walk("plugins");
           NODESCRIPT
-
+          
       - name: Ensure Gradle Wrapper exists (Gradle 6.9.4)
         shell: bash
         run: |
@@ -322,7 +326,7 @@ jobs:
           fi
           chmod +x gradlew
           cd ../..
-
+          
       - name: Build APK Directly with Gradle
         shell: bash
         run: |
@@ -341,11 +345,24 @@ jobs:
               cp -f "$SRC" "$DEST"
             done < <(find platforms/android -path "*/${ABI}/libnode.so" 2>/dev/null || true)
           done
+          # Hanya build arsitektur arm64-v8a (HP modern) supaya APK jauh lebih kecil
+          cat > platforms/android/app/build-extras.gradle <<'EOG'
+          android {
+              defaultConfig {
+                  ndk { abiFilters 'arm64-v8a' }
+              }
+              packagingOptions {
+                  exclude 'lib/armeabi-v7a/**'
+                  exclude 'lib/x86/**'
+                  exclude 'lib/x86_64/**'
+              }
+          }
+          EOG
           
           cd platforms/android
           ./gradlew assembleDebug --stacktrace 2>&1 | tee ../../build.log
           cd ../..
-
+          
       - name: Find and collect APK
         if: success()
         shell: bash
@@ -354,12 +371,12 @@ jobs:
           mkdir -p build-artifacts
           APK_PATH="$(find platforms/android -type f -path '*/outputs/apk/*/*.apk' ! -name '*-androidTest*' -print -quit)"
           cp "$APK_PATH" build-artifacts/hc-bot-app-debug.apk
-
+          
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: hc-bot-app-debug-apk
-          path: build-artifacts/hc-bot-app-debug.apk
+          name: Hc-bot-app-debug-apk
+          path: build-artifacts/Hc-bot-app-debug.apk
           if-no-files-found: error
           retention-days: 7

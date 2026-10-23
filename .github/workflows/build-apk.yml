@@ -182,6 +182,7 @@ jobs:
           
           cordova platform add ./vendor/cordova-android --nofetch
           cordova plugin add ./vendor/nodejs-mobile-cordova --nofetch
+          cordova plugin add cordova-plugin-foreground-service@1.1.3
           cordova prepare android
 
       - name: Inject Node.js v18.20.4 (Official Release - multi-arch)

@@ -90,6 +90,18 @@ function send(obj) {
 function onDeviceReady() {
   setStatus('Memulai mesin Node.js...', 'wait');
   log('deviceready');
+  try {
+    const fs = cordova.plugins && cordova.plugins.foregroundService;
+    if (fs) {
+      fs.start('Hc Bot App', 'Bot WhatsApp berjalan di latar belakang');
+      if (typeof fs.getWakeLock === 'function') fs.getWakeLock();
+      log('Foreground service aktif');
+    } else {
+      log('Foreground service tidak tersedia');
+    }
+  } catch (e) {
+    log('Foreground service error: ' + e);
+  }
   if (typeof nodejs === 'undefined') {
     setStatus('Plugin nodejs-mobile tidak ada', 'bad');
     log('ERROR: objek nodejs tidak ditemukan. Plugin mungkin gagal di-link.');

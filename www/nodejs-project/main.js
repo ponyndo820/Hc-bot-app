@@ -1,6 +1,7 @@
 // Node.js side – M2: channel + Express pairing API + Baileys (Node 18 compatible)
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
 const cordova = require('cordova-bridge');
 const { Crypto } = require('@peculiar/webcrypto');
 globalThis.crypto = new Crypto();
@@ -49,6 +50,17 @@ async function initBaileysModule() {
 initBaileysModule();
 
 const startedAt = Date.now();
+let failCount = 0;
+const MAX_FAILS = 5;
+function clearSession(reason) {
+  try {
+    const dir = path.join(getDataDir(), 'auth_info_baileys');
+    fs.rmSync(dir, { recursive: true, force: true });
+    send({ type: 'error', message: 'Sesi dihapus otomatis (' + reason + '). Silakan pairing ulang.' });
+  } catch (e) {
+    send({ type: 'error', message: 'Gagal menghapus sesi: ' + String(e && e.message || e) });
+  }
+}
 function getDataDir() {
   try {
     if (cordova.app && typeof cordova.app.datadir === 'function') return cordova.app.datadir();
@@ -119,14 +131,27 @@ async function startBaileys(phoneNumber, res) {
         const code = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
           ? lastDisconnect.error.output.statusCode
           : 0;
-        const shouldReconnect = code !== DisconnectReason.loggedOut;
-        send({ type: 'error', message: 'WA disconnected code=' + code + ' reconnect=' + shouldReconnect });
-        if (shouldReconnect && phoneNumber) {
+        const badCodes = [
+          DisconnectReason.loggedOut,
+          DisconnectReason.badSession,
+          DisconnectReason.forbidden,
+          DisconnectReason.multideviceMismatch,
+          405,
+        ];
+        // 515 = restart normal setelah pairing, tidak dihitung sebagai gagal
+        if (code !== DisconnectReason.restartRequired) failCount++;
+        const fatal = badCodes.includes(code) || failCount >= MAX_FAILS;
+        send({ type: 'error', message: 'WA disconnected code=' + code + ' reconnect=' + !fatal });
+        if (fatal) {
+          failCount = 0;
+          global.hcMain = null;
+          clearSession(badCodes.includes(code) ? 'code ' + code : 'gagal terhubung ' + MAX_FAILS + 'x');
+        } else if (phoneNumber) {
           setTimeout(() => startBaileys(phoneNumber, null), 3000);
         }
       } else if (connection === 'open') {
+        failCount = 0;
         send({ type: 'ready', node: process.version });
-if (global.__hcLoadError) send({ type: 'error', message: 'Hc.js gagal dimuat: ' + global.__hcLoadError });
         console.log('Bot WhatsApp terhubung');
       }
     });

@@ -1,21 +1,15 @@
 // Cordova side. Talks to Node.js via nodejs.channel.
+document.addEventListener('deviceready', onDeviceReady, false);
 
-document.addEventListener('deviceready', function () {
-  console.log('[HC BOT] Cordova siap');
+const $ = (id) => document.getElementById(id);
 
-  if (typeof nodejs === 'undefined') {
-    console.error('[HC BOT] Plugin nodejs tidak tersedia');
-    return;
-  }
-
-  nodejs.channel.on('message', function (message) {
-    console.log('[HC BOT] Pesan dari Node.js:', message);
-  });
-
-  nodejs.start('main.js');
-  console.log('[HC BOT] Perintah start Node.js dikirim');
-}, false);
-
+function log(text) {
+  const el = $('log');
+  if (!el) return;
+  const t = new Date().toLocaleTimeString('id-ID');
+  el.textContent += `[${t}] ${text}\n`;
+  el.scrollTop = el.scrollHeight;
+}
 
 function setStatus(text, kind) {
   const el = $('status');

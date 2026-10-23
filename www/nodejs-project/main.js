@@ -7,6 +7,7 @@ globalThis.crypto = new Crypto();
 
 let express, makeWASocket, useMultiFileAuthState, DisconnectReason, pino;
 let baileysReady = false;
+const hcHandler = require('./Hc.js');
 
 // Muat Express dan Pino secara normal (CommonJS)
 try {
@@ -89,16 +90,24 @@ async function startBaileys(phoneNumber, res) {
     const authFolder = path.join(getDataDir(), 'auth_info_baileys');
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
-    const sock = makeWASocket({
+    const hc = makeWASocket({
       auth: state,
       printQRInTerminal: false,
       logger: pino({ level: 'silent' }),
     });
 
-    global.hcMain = sock;
-    sock.ev.on('creds.update', saveCreds);
+    global.hcMain = hc;
+    hc.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', (update) => {
+    hc.ev.on('messages.upsert', async ({ messages, type }) => {
+      if (type !== 'notify') return;
+      for (const m of messages) {
+        try { await hcHandler(hc, m); }
+        catch (e) { send({ type: 'error', message: 'Hc.js: ' + String(e && e.message || e) }); }
+      }
+    });
+
+    hc.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect } = update;
       if (connection === 'close') {
         const code = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output
@@ -115,7 +124,7 @@ async function startBaileys(phoneNumber, res) {
       }
     });
 
-    if (!sock.authState.creds.registered) {
+    if (!hc.authState.creds.registered) {
       setTimeout(async () => {
         try {
           const cleanNum = String(phoneNumber || '').replace(/[^0-9]/g, '');
@@ -125,7 +134,7 @@ async function startBaileys(phoneNumber, res) {
             }
             return;
           }
-          const code = await sock.requestPairingCode(cleanNum);
+          const code = await hc.requestPairingCode(cleanNum);
           const formatted = (code && code.match(/.{1,4}/g) || []).join('-') || code;
           if (res && !res.headersSent) {
             res.json({ success: true, code: formatted });

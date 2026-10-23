@@ -376,7 +376,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Hc-bot-app-debug-apk
-          path: build-artifacts/Hc-bot-app-debug.apk
+          name: hc-bot-app-debug-apk
+          path: build-artifacts/hc-bot-app-debug.apk
           if-no-files-found: error
           retention-days: 7

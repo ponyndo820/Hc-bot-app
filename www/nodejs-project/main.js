@@ -7,7 +7,13 @@ globalThis.crypto = new Crypto();
 
 let express, makeWASocket, useMultiFileAuthState, DisconnectReason, pino;
 let baileysReady = false;
-const hcHandler = require('./Hc.js');
+// Dimuat aman: kalau Hc.js error, aplikasi tidak ikut crash
+let hcHandler = async () => {};
+try {
+  hcHandler = require('./Hc.js');
+} catch (e) {
+  global.__hcLoadError = String(e && e.stack || e);
+}
 
 // Muat Express dan Pino secara normal (CommonJS)
 try {
@@ -120,6 +126,7 @@ async function startBaileys(phoneNumber, res) {
         }
       } else if (connection === 'open') {
         send({ type: 'ready', node: process.version });
+if (global.__hcLoadError) send({ type: 'error', message: 'Hc.js gagal dimuat: ' + global.__hcLoadError });
         console.log('Bot WhatsApp terhubung');
       }
     });
@@ -217,3 +224,4 @@ process.on('unhandledRejection', (e) => {
 // initBaileysModule() berjalan asynchronous, jadi baileysReady masih false
 // pada saat baris ini dieksekusi. Error sebenarnya dikirim dari catch initBaileysModule().
 send({ type: 'ready', node: process.version });
+if (global.__hcLoadError) send({ type: 'error', message: 'Hc.js gagal dimuat: ' + global.__hcLoadError });

@@ -3,8 +3,16 @@
    * By Heart candy
    * Handler pesan (variabel disamakan dengan Hc-bot-master_v2)
 */
-const { getContentType } = require('@whiskeysockets/baileys');
 const settings = require('./settings.js');
+
+// Pengganti getContentType dari Baileys (agar tidak perlu require paket ESM)
+const getContentType = (content) => {
+  if (!content) return undefined;
+  const keys = Object.keys(content).filter(
+    (k) => k !== 'messageContextInfo' && k !== 'senderKeyDistributionMessage'
+  );
+  return keys[0];
+};
 
 const pickRandom = (list) => list[Math.floor(Math.random() * list.length)];
 

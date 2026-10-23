@@ -42,6 +42,18 @@ async function initBaileysModule() {
 initBaileysModule();
 
 const startedAt = Date.now();
+function getDataDir() {
+  try {
+    if (cordova.app && typeof cordova.app.datadir === 'function') return cordova.app.datadir();
+  } catch (_) {}
+  return process.env.DATADIR || os.tmpdir();
+}
+// Adapter agar startBaileys bisa membalas lewat channel (tanpa HTTP)
+const channelRes = {
+  headersSent: false,
+  status() { return this; },
+  json(o) { this.headersSent = true; send(Object.assign({ type: 'pairing' }, o)); },
+};
 function send(obj) {
   try {
     cordova.channel.send(JSON.stringify(obj));
@@ -56,7 +68,7 @@ function info() {
     platform: process.platform,
     arch: process.arch,
     uptime: Math.round((Date.now() - startedAt) / 1000),
-    dataDir: process.env.DATADIR || path.resolve('.'),
+    dataDir: getDataDir(),
     hostname: os.hostname(),
     baileys: baileysReady ? 'ok' : ('error: ' + (global.__baileysLoadError || 'not loaded')),
   };
@@ -74,7 +86,7 @@ async function startBaileys(phoneNumber, res) {
   }
 
   try {
-    const authFolder = path.resolve(process.env.DATADIR || '.', 'auth_info_baileys');
+    const authFolder = path.join(getDataDir(), 'auth_info_baileys');
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
     const sock = makeWASocket({
@@ -145,6 +157,7 @@ async function startBaileys(phoneNumber, res) {
 if (express) {
   const app = express();
   app.use(express.json());
+  app.use((_req, res, next) => { res.setHeader('Access-Control-Allow-Origin', '*'); next(); });
 
   app.get('/pair', async (req, res) => {
     const phoneNumber = req.query.number;
@@ -175,8 +188,8 @@ cordova.channel.on('message', (raw) => {
       return send({ type: 'pong', ms: Date.now() - (msg.t || Date.now()) });
     }
     if (msg.cmd === 'pair') {
-      startBaileys(msg.number, null);
-      return send({ type: 'info', message: 'pairing started for ' + msg.number });
+      channelRes.headersSent = false;
+      return startBaileys(msg.number, channelRes);
     }
     send({ type: 'error', message: 'Perintah tidak dikenal: ' + (msg.cmd || '?') });
   } catch (e) {

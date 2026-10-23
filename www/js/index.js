@@ -62,6 +62,12 @@ function onNodeMessage(raw) {
     case 'pong':
       log(`Pong dari Node.js (${msg.ms} ms sejak dikirim)`);
       break;
+    case 'pairing': {
+      const d = $('pairingCodeDisplay');
+      if (msg.success) { if (d) d.innerText = msg.code; log('Kode pairing: ' + msg.code); }
+      else { if (d) d.innerText = 'Gagal!'; log('Pairing gagal: ' + msg.message); alert(msg.message || 'Gagal membuat kode pairing.'); }
+      break;
+    }
     case 'error':
       setStatus('Error di Node.js', 'bad');
       log('ERROR: ' + msg.message);
@@ -127,21 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (display) display.innerText = 'Memuat...';
             if (container) container.style.display = 'block';
             
-            try {
-                const response = await fetch(`http://localhost:3000/pair?number=${phone.trim()}`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    if (display) display.innerText = data.code;
-                } else {
-                    if (display) display.innerText = 'Gagal!';
-                    alert(data.message || 'Terjadi kesalahan saat mengambil kode pairing.');
-                }
-            } catch (err) {
-                console.error(err);
-                if (display) display.innerText = 'Error!';
-                alert('Gagal terhubung ke server Node.js di dalam aplikasi.');
-            }
+            send({ cmd: 'pair', number: phone.trim().replace(/[^0-9]/g, '') });
         });
     }
 });

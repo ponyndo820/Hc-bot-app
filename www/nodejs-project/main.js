@@ -108,6 +108,11 @@ async function startBaileys(phoneNumber, res) {
     const authFolder = path.join(getDataDir(), 'auth_info_baileys');
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
+    // Matikan socket lama dulu agar tidak ada 2 koneksi dengan sesi yang sama (penyebab code 440)
+    if (global.hcMain) {
+      try { global.hcMain.ev.removeAllListeners(); global.hcMain.end(undefined); } catch (_) {}
+      global.hcMain = null;
+    }
     const hc = makeWASocket({
       auth: state,
       printQRInTerminal: false,
@@ -138,6 +143,13 @@ async function startBaileys(phoneNumber, res) {
           DisconnectReason.multideviceMismatch,
           405,
         ];
+        // 440 = sesi dipakai di tempat lain: berhenti, jangan reconnect terus-menerus & jangan hapus sesi
+        if (code === DisconnectReason.connectionReplaced) {
+          failCount = 0;
+          global.hcMain = null;
+          send({ type: 'error', message: 'Code 440: sesi ini dipakai perangkat/bot lain. Matikan bot lain yang memakai nomor yang sama, lalu buka ulang aplikasi.' });
+          return;
+        }
         // 515 = restart normal setelah pairing, tidak dihitung sebagai gagal
         if (code !== DisconnectReason.restartRequired) failCount++;
         const fatal = badCodes.includes(code) || failCount >= MAX_FAILS;

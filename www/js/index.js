@@ -56,7 +56,7 @@ function onNodeMessage(raw) {
       send({ cmd: 'info' });
       break;
     case 'info':
-      renderInfo(msg);
+      if (msg.platform) renderInfo(msg);
       log('Info mesin dimuat.');
       break;
     case 'pong':
@@ -68,6 +68,9 @@ function onNodeMessage(raw) {
       else { if (d) d.innerText = 'Gagal!'; log('Pairing gagal: ' + msg.message); alert(msg.message || 'Gagal membuat kode pairing.'); }
       break;
     }
+    case 'log':
+      log(msg.message);
+      break;
     case 'error':
       setStatus('Error di Node.js', 'bad');
       log('ERROR: ' + msg.message);

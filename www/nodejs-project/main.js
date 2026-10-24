@@ -117,10 +117,20 @@ async function startBaileys(phoneNumber, res) {
     hc.ev.on('creds.update', saveCreds);
 
     hc.ev.on('messages.upsert', async ({ messages, type }) => {
-      if (type !== 'notify') return;
       for (const m of messages) {
-        try { await hcHandler(hc, m); }
-        catch (e) { send({ type: 'error', message: 'Hc.js: ' + String(e && e.message || e) }); }
+        // Terima pesan baru ('notify') dan pesan 'append' yang masih segar (<30 detik),
+        // karena pesan dari HP sendiri ke chat diri sendiri bisa datang sebagai 'append'
+        const ts = Number((m.messageTimestamp && m.messageTimestamp.low) || m.messageTimestamp || 0);
+        const fresh = ts && (Date.now() / 1000 - ts) < 30;
+        if (type !== 'notify' && !(type === 'append' && fresh)) continue;
+        try {
+          const mm = m.message || {};
+          const t = mm.conversation || (mm.extendedTextMessage && mm.extendedTextMessage.text) || '';
+          if (t) send({ type: 'log', message: 'Pesan masuk (' + type + '): ' + t.slice(0, 40) });
+          await hcHandler(hc, m);
+        } catch (e) {
+          send({ type: 'error', message: 'Hc.js: ' + String(e && e.message || e) });
+        }
       }
     });
 
@@ -158,6 +168,7 @@ async function startBaileys(phoneNumber, res) {
       } else if (connection === 'open') {
         failCount = 0;
         send({ type: 'ready', node: process.version });
+        send({ type: 'log', message: 'WhatsApp tersambung: ' + String((hc.user && hc.user.id) || '-') });
         console.log('Bot WhatsApp terhubung');
       }
     });
@@ -177,7 +188,6 @@ async function startBaileys(phoneNumber, res) {
           if (res && !res.headersSent) {
             res.json({ success: true, code: formatted });
           }
-          send({ type: 'info', pairingCode: formatted, node: process.version });
         } catch (err) {
           console.error('Gagal request pairing code:', err);
           if (res && !res.headersSent) {

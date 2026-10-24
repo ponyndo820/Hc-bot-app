@@ -72,6 +72,7 @@
       <a class="link-row" href="https://youtube.com/@ponyndo?si=k9PQEkINzEREkE6p">YouTube</a>
       <a class="link-row" href="https://github.com/ponyndo820">GitHub</a>
     </section>
+    <p class="app-version" id="appVersion">Hc Bot App v0.2.0 · build __BUILD__</p>
   </main>
 
   <script src="cordova.js"></script>
@@ -119,6 +120,18 @@
         }
       }
     }
+    // Link di halaman Kontak: buka lewat browser/aplikasi bawaan HP
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a.link-row');
+      if (!a) return;
+      e.preventDefault();
+      var url = a.getAttribute('href');
+      try {
+        if (window.cordova && cordova.InAppBrowser) cordova.InAppBrowser.open(url, '_system');
+        else window.location.href = url;
+      } catch (err) { window.location.href = url; }
+    }, true);
+
     var info = $('info');
     if (info && window.MutationObserver) new MutationObserver(readUptime).observe(info, { childList: true, subtree: true });
     setInterval(function () {

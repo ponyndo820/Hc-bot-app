@@ -19,6 +19,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
+      - name: Tandai versi build
+        shell: bash
+        run: |
+          sed -i "s/__BUILD__/${GITHUB_RUN_NUMBER}/" www/index.html
+          grep -n "app-version" www/index.html || true
+
       - name: Set up Node.js 18
         uses: actions/setup-node@v4
         with:
@@ -187,6 +193,7 @@ jobs:
           cordova platform add ./vendor/cordova-android --nofetch
           cordova plugin add ./vendor/nodejs-mobile-cordova --nofetch
           cordova plugin add cordova-plugin-foreground-service@1.1.3
+          cordova plugin add cordova-plugin-inappbrowser@5.0.0
           cordova prepare android
           
       - name: Inject Node.js v18.20.4 (Official Release - multi-arch)

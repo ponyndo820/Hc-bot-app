@@ -126,10 +126,12 @@
       if (!a) return;
       e.preventDefault();
       var url = a.getAttribute('href');
-      try {
-        if (window.cordova && cordova.InAppBrowser) cordova.InAppBrowser.open(url, '_system');
-        else window.location.href = url;
-      } catch (err) { window.location.href = url; }
+      if (window.cordova && cordova.InAppBrowser) {
+        cordova.InAppBrowser.open(url, '_system');
+      } else {
+        try { navigator.clipboard && navigator.clipboard.writeText(url); } catch (err) {}
+        alert('Link disalin:\n' + url + '\n\n(APK ini belum memuat plugin browser, pasang APK terbaru)');
+      }
     }, true);
 
     var info = $('info');

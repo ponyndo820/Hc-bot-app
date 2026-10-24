@@ -59,6 +59,10 @@
         <dt>Mulai sejak</dt><dd id="startedAt">-</dd>
       </dl>
     </section>
+    <section class="card" data-view="rentang" hidden>
+    <h2>Tentang kami</h2>
+    <p>Hi perkenalkan nama ku Heart candy, Kami hanya ingin menciptakan sesuatu yang berbeda dari bot lain nya, Bot ini bertemakan MLP (My little Pony) kami ingin komunitas MLP tetap hidup, sekarang MLP sudah berusia 16th. Bot ini mengunakan engine node.js=18.20.8 bot ini berjalan mengunakan baileys^6.6.0</p>
+    </section>
     
     <section class="card" id="logCard" data-view="home log">
       <h2>Log</h2>
@@ -78,7 +82,6 @@
   <script src="cordova.js"></script>
   <script src="js/index.js"></script>
   <script>
-  /* Menu garis: ditangani di sini (event capture) supaya selalu bisa diklik */
   (function () {
     var $ = function (id) { return document.getElementById(id); };
     function closeMenu() {
@@ -120,7 +123,7 @@
         }
       }
     }
-    // Link di halaman Kontak: buka lewat browser/aplikasi bawaan HP
+    
     document.addEventListener('click', function (e) {
       var a = e.target.closest && e.target.closest('a.link-row');
       if (!a) return;

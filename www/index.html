@@ -59,18 +59,18 @@
         <dt>Mulai sejak</dt><dd id="startedAt">-</dd>
       </dl>
     </section>
-
+    
     <section class="card" id="logCard" data-view="home log">
       <h2>Log</h2>
       <pre id="log"></pre>
     </section>
-
+    
     <section class="card" data-view="kontak" hidden>
       <h2>Kontak</h2>
-      <a class="link-row" href="https://wa.me/6285828708258" target="_blank" rel="noopener">WhatsApp Owner</a>
-      <a class="link-row" href="https://chat.whatsapp.com/E50d9VEtLnc3acHPFeRdqY?mode=gi_t" target="_blank" rel="noopener">Grup WhatsApp</a>
-      <a class="link-row" href="https://youtube.com/@ponyndo?si=k9PQEkINzEREkE6p" target="_blank" rel="noopener">YouTube</a>
-      <a class="link-row" href="https://github.com/ponyndo820/Hc-bot" target="_blank" rel="noopener">GitHub</a>
+      <a class="link-row" href="https://wa.me/6285828708258">WhatsApp Owner</a>
+      <a class="link-row" href="https://whatsapp.com/channel/0029Vb6en2iAu3aXA7AcFI0Y">WhatsApp Channel</a>
+      <a class="link-row" href="https://youtube.com/@ponyndo?si=k9PQEkINzEREkE6p">YouTube</a>
+      <a class="link-row" href="https://github.com/ponyndo820">GitHub</a>
     </section>
   </main>
 
@@ -109,8 +109,7 @@
       if (item) { e.stopPropagation(); e.preventDefault(); showPage(item.getAttribute('data-page')); return; }
       closeMenu();
     }, true);
-
-    // Halaman Rentang: hitung dari baris "Aktif sejak" di panel info
+    
     function readUptime() {
       var dts = document.querySelectorAll('#info dt');
       for (var i = 0; i < dts.length; i++) {

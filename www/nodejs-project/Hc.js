@@ -1,11 +1,6 @@
-/*
-   * Hc.js
-   * By Heart candy
-   * Handler pesan (variabel disamakan dengan Hc-bot-master_v2)
-*/
 const settings = require('./settings.js');
+const runtime = require('./lib/function.js');
 
-// Pengganti getContentType dari Baileys (agar tidak perlu require paket ESM)
 const getContentType = (content) => {
   if (!content) return undefined;
   const keys = Object.keys(content).filter(
@@ -64,22 +59,21 @@ async function Hc(hc, m) {
     const packname = settings.packname || 'ponyndo';
     const botname = settings.botName?.[0] || 'Hc-bot';
     const setv = pickRandom(settings.listv);
-
+    
+    // Add case command disini
     switch (command) {
       case 'tes': {
         reply('ya');
       }
-      break;
-
-      // Tambah command baru di bawah sini dengan format yang sama:
-      // case 'owner': {
-      //   if (!isCreator) return reply(settings.mess.owr);
-      //   reply('Halo owner!');
-      // }
-      // break;
-
+      break
+      case 'runtime': case 'bot': {
+        if (!args[0] && !args[1]) return reply(`*Bot Telah Aktif Selama*\n*${runtime(process.uptime())}*`);
+      }
+      break
+      
+      
       default:
-    }
+    } // Penutup case command
   } catch (err) {
     console.error('Error di Hc.js:', err);
   }

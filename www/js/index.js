@@ -1,4 +1,3 @@
-// Cordova side. Talks to Node.js via nodejs.channel.
 document.addEventListener('deviceready', onDeviceReady, false);
 
 const $ = (id) => document.getElementById(id);
@@ -115,7 +114,7 @@ function onDeviceReady() {
   }
   nodejs.start('main.js', (err) => {
     if (err) {
-      // Mesin sudah berjalan di latar belakang (foreground service): cukup sambung ulang ke channel
+
       if (String(err).indexOf('already started') !== -1) {
         setStatus('Mesin Node.js berjalan', 'ok');
         log('Mesin Node.js sudah berjalan di latar belakang, tersambung kembali.');
@@ -137,7 +136,6 @@ function onDeviceReady() {
   if (btnInfo) btnInfo.addEventListener('click', () => send({ cmd: 'info' }));
 }
 
-// Event listener untuk tombol Pairing (M2)
 document.addEventListener('DOMContentLoaded', () => {
     const getPairBtn = $('getPairBtn');
     if (getPairBtn) {

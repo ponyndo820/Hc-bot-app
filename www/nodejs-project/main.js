@@ -1,4 +1,3 @@
-// Node.js side – M2: channel + Express pairing API + Baileys (Node 18 compatible)
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
@@ -8,7 +7,6 @@ globalThis.crypto = new Crypto();
 
 let express, makeWASocket, useMultiFileAuthState, DisconnectReason, pino;
 let baileysReady = false;
-// Dimuat aman: kalau Hc.js error, aplikasi tidak ikut crash
 let hcHandler = async () => {};
 try {
   hcHandler = require('./Hc.js');
@@ -16,15 +14,13 @@ try {
   global.__hcLoadError = String(e && e.stack || e);
 }
 
-// Muat Express dan Pino secara normal (CommonJS)
 try {
   express = require('express');
   pino = require('pino');
 } catch (e) {
   global.__baileysLoadError = String(e && e.stack || e);
-} // <-- Kurung kurawal tutup catch Express ditambahkan di sini
+}
 
-// Inisialisasi Baileys menggunakan dynamic import() agar mendukung ESM
 async function initBaileysModule() {
   try {
     const baileys = await import('@whiskeysockets/baileys');
@@ -43,10 +39,9 @@ async function initBaileysModule() {
     global.__baileysLoadError = errStr;
     console.error('Baileys load error:', e);
     send({ type: 'error', message: 'Baileys err: ' + errStr });
-  } // <-- Kurung kurawal tutup catch initBaileysModule ditambahkan di sini
-} // <-- Kurung kurawal tutup fungsi initBaileysModule ditambahkan di sini
+  }
+}
 
-// Jalankan inisialisasi modul Baileys
 initBaileysModule();
 
 const startedAt = Date.now();
@@ -67,7 +62,7 @@ function getDataDir() {
   } catch (_) {}
   return process.env.DATADIR || os.tmpdir();
 }
-// Adapter agar startBaileys bisa membalas lewat channel (tanpa HTTP)
+
 const channelRes = {
   headersSent: false,
   status() { return this; },
@@ -107,8 +102,7 @@ async function startBaileys(phoneNumber, res) {
   try {
     const authFolder = path.join(getDataDir(), 'auth_info_baileys');
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
-
-    // Matikan socket lama dulu agar tidak ada 2 koneksi dengan sesi yang sama (penyebab code 440)
+    
     if (global.hcMain) {
       try { global.hcMain.ev.removeAllListeners(); global.hcMain.end(undefined); } catch (_) {}
       global.hcMain = null;
@@ -143,14 +137,14 @@ async function startBaileys(phoneNumber, res) {
           DisconnectReason.multideviceMismatch,
           405,
         ];
-        // 440 = sesi dipakai di tempat lain: berhenti, jangan reconnect terus-menerus & jangan hapus sesi
+
         if (code === DisconnectReason.connectionReplaced) {
           failCount = 0;
           global.hcMain = null;
           send({ type: 'error', message: 'Code 440: sesi ini dipakai perangkat/bot lain. Matikan bot lain yang memakai nomor yang sama, lalu buka ulang aplikasi.' });
           return;
         }
-        // 515 = restart normal setelah pairing, tidak dihitung sebagai gagal
+        
         if (code !== DisconnectReason.restartRequired) failCount++;
         const fatal = badCodes.includes(code) || failCount >= MAX_FAILS;
         send({ type: 'error', message: 'WA disconnected code=' + code + ' reconnect=' + !fatal });
@@ -206,7 +200,6 @@ async function startBaileys(phoneNumber, res) {
   }
 }
 
-// Express setup
 if (express) {
   const app = express();
   app.use(express.json());
@@ -257,8 +250,5 @@ process.on('unhandledRejection', (e) => {
   send({ type: 'error', message: 'UnhandledRejection: ' + String(e && e.stack || e) });
 });
 
-// Node.js runtime sudah berjalan. Jangan mengirim error Baileys di sini:
-// initBaileysModule() berjalan asynchronous, jadi baileysReady masih false
-// pada saat baris ini dieksekusi. Error sebenarnya dikirim dari catch initBaileysModule().
 send({ type: 'ready', node: process.version });
 if (global.__hcLoadError) send({ type: 'error', message: 'Hc.js gagal dimuat: ' + global.__hcLoadError });

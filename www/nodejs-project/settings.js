@@ -1,7 +1,3 @@
-/*
-   * settings.js
-   * By Heart candy
-*/
 const settings = {
   ownerNumber: ['6285828708258'],
   author: 'Heart candy',

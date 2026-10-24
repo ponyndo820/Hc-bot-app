@@ -236,10 +236,33 @@ if (express) {
   }
 }
 
+
+// Jalankan bot otomatis kalau ada sesi tersimpan (seperti `npm start` di Termux)
+async function autoStart() {
+  try {
+    const credsPath = path.join(getDataDir(), 'auth_info_baileys', 'creds.json');
+    if (!fs.existsSync(credsPath)) return;
+    const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+    const meId = creds && creds.me && creds.me.id;
+    if (!creds.registered && !meId) return;
+    const num = String(meId || '').split(':')[0].split('@')[0].replace(/[^0-9]/g, '');
+    global.__autoStarted = true;
+    await startBaileys(num || 'auto', null);
+  } catch (e) {
+    send({ type: 'error', message: 'Auto start gagal: ' + String(e && e.message || e) });
+  }
+}
+
 cordova.channel.on('message', (raw) => {
   try {
     const msg = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (msg.cmd === 'info') return send(info());
+    if (msg.cmd === 'info') {
+      if (global.__autoStarted && !global.__autoNotified) {
+        global.__autoNotified = true;
+        send({ type: 'log', message: 'Sesi tersimpan ditemukan, bot dijalankan otomatis.' });
+      }
+      return send(info());
+    }
     if (msg.cmd === 'ping') {
       return send({ type: 'pong', ms: Date.now() - (msg.t || Date.now()) });
     }
@@ -262,3 +285,5 @@ process.on('unhandledRejection', (e) => {
 
 send({ type: 'ready', node: process.version });
 if (global.__hcLoadError) send({ type: 'error', message: 'Hc.js gagal dimuat: ' + global.__hcLoadError });
+
+autoStart();

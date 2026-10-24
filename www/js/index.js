@@ -5,9 +5,12 @@ const $ = (id) => document.getElementById(id);
 function log(text) {
   const el = $('log');
   if (!el) return;
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   const t = new Date().toLocaleTimeString('id-ID');
   el.textContent += `[${t}] ${text}\n`;
-  el.scrollTop = el.scrollHeight;
+  const lines = el.textContent.split('\n');
+  if (lines.length > 501) el.textContent = lines.slice(-501).join('\n');
+  if (atBottom) el.scrollTop = el.scrollHeight;
 }
 
 function setStatus(text, kind) {

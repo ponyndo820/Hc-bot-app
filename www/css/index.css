@@ -68,10 +68,15 @@ button.ghost { background: transparent; border: 1.5px solid var(--pink); color: 
 .pair-label { font-size: 12px; color: var(--mut); margin: 0 0 4px; }
 .pair-code { font-size: 26px; color: var(--pink); letter-spacing: 2px; margin: 0; }
 
-pre { margin: 0; max-height: 60vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 12px; color: #5a4650; }
+pre { margin: 0; height: clamp(280px, 42vh, 420px); overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+  white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.5; color: #5a4650;
+  background: #fff7fb; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .uptime-big { font-size: 28px; font-weight: 700; color: var(--pink); margin-bottom: 12px; }
 .link-row { display: block; padding: 12px 16px; margin-bottom: 8px; border-radius: 999px; background: var(--pink-pale);
   color: var(--pink); font-weight: 600; text-decoration: none; }
 #logCard { scroll-margin-top: 96px; }
 
-.app-version { text-align: center; font-size: 12px; color: #fff; opacity: .85; margin: 8px 0 0; }
+main { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px); }
+.app-version { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; margin: 0; pointer-events: none;
+  padding: 18px 12px calc(env(safe-area-inset-bottom, 0px) + 8px); text-align: center; font-size: 12px; color: #a8456f;
+  background: linear-gradient(180deg, rgba(251,192,220,0) 0%, rgba(251,192,220,.95) 55%); }
